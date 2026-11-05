@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
+<style>
+:root { color-scheme:light dark }
+html,body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; font:15px -apple-system,BlinkMacSystemFont,sans-serif; }
+#diagram { width:100%; height:100%; overflow:auto; touch-action:pan-x pan-y pinch-zoom; }
+#diagram svg { display:block; max-width:none; }
+#diagram .mermaid-result { padding:16px; min-width:max-content; }
+#status { position:absolute; top:16px; left:16px; right:16px; pointer-events:none; color:CanvasText }
+</style></head><body>
+<div id="diagram" aria-label="Read-only local diagram"></div><div id="status" role="status"></div>
+<script src="reader.js"></script></body></html>

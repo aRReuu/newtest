@@ -1,0 +1,19 @@
+name: Public sanitized source safety
+on:
+  push:
+    branches:
+      - main
+      - staging/english-source-mirror-20261105
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  source-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no images, icons, private data or Chinese explanatory prose
+        run: python3 .github/scripts/check_public_mirror.py

@@ -21,3 +21,11 @@ The original Xcode project and source code are retained where safe to publish. B
 ## Provenance and safety
 
 The public repository uses an independent Git history. Before publication, files are screened for common secret formats and prohibited media paths. Dependency and source licenses remain with their respective files.
+
+## Translation fidelity
+
+English documentation was produced using an **offline machine-translation model** and checked for remaining Chinese explanatory prose. These automated checks do not guarantee exact preservation of nuanced technical or acceptance language. Source-code identifiers, user-facing localization strings, and functional test data were not translated. Refer to the source revision recorded in [PUBLIC_SOURCE_MANIFEST.json](PUBLIC_SOURCE_MANIFEST.json) when traceability matters.
+
+## Licensing
+
+Third-party notices and acknowledgements are retained where available. Publishing this mirror does not, by itself, grant a new license to the original first-party source code.

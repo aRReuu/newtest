@@ -1,0 +1,23 @@
+{
+  "name": "ImPressableButton",
+  "version": "0.0.1",
+  "summary": "A custom UIButton with a 3D pressable effect.",
+  "homepage": "https://github.com/aReu/ImPressableButton",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "aReu": "493414881@qq.com"
+  },
+  "source": {
+    "git": ".",
+    "tag": "0.0.1"
+  },
+  "platforms": {
+    "ios": "10.0"
+  },
+  "source_files": "ImPressableButton/*.{h,m,swift}",
+  "swift_versions": "5.0",
+  "swift_version": "5.0"
+}

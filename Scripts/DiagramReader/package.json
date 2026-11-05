@@ -1,0 +1,21 @@
+{
+  "name": "impress-diagram-offline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "qa:test:geometry": "node --test test-inline-excalidraw-geometry.mjs test-safe-diagram-policy.mjs test-render-generation.mjs test-inline-excalidraw-text.mjs test-inline-excalidraw-image.mjs test-inline-excalidraw-projection.mjs test-excalidraw-official-svg-affine.mjs test-inline-excalidraw-resource-budget.mjs test-inline-excalidraw-svg-dom.mjs test-inline-canvas-edge.mjs test-excalidraw-official-pixel-map.mjs"
+  },
+  "dependencies": {
+    "markdown-it": "14.1.0",
+    "katex": "0.16.22",
+    "mermaid": "11.12.2",
+    "markmap-lib": "0.18.12",
+    "markmap-view": "0.18.12"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

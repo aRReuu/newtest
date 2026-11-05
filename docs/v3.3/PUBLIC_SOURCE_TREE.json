@@ -1,0 +1,846 @@
+{
+  "version": 1,
+  "kind": "public-source-sha-manifest",
+  "sourceRepo": "aRReuu/Impress-iphone-public-build",
+  "sourceBranch": "main",
+  "sourceCommit": "627c27ba3c8a0001837371d2f1d9637f6aa964e9",
+  "recordedDate": "2026-10-18",
+  "publicTreeSHA": "627c27ba3c8a0001837371d2f1d9637f6aa964e9",
+  "sourceFileCount": 164,
+  "publicNativeQA": {
+    "runID": 39109383817,
+    "UITestPassed": 99,
+    "UITestFailed": 0,
+    "swiftTestingPassed": 17,
+    "ipa": "Impress-V3.3-627c27ba3c8a-7icon-INCOMPLETE-unsigned.ipa",
+    "ipaSHA256": "a3b36b164a68f12b5655fd902d4de9126c186d0536268dfbf118f73c1644e18a"
+  },
+  "privateDataPolicy": {
+    "icon1024GitBlob": "f5a0edd2f317c7104441ee8798fb0fbf00cff9e5",
+    "privateOriginalImagesAndDocs": "retained and never copied to public",
+    "publicWorkflows": "archived as inert private docs",
+    "sourceOnly": "never archive user databases or secrets"
+  },
+  "files": [
+    {
+      "path": ".github/scripts/check_git_history_secrets.py",
+      "sha": "8062ed497a6ed957dcb496cdd141447609ca03d4",
+      "bytes": 2603
+    },
+    {
+      "path": ".github/scripts/generate_neutral_assets.py",
+      "sha": "0da34735b62965266f2faff258dd1413f7439067",
+      "bytes": 3398
+    },
+    {
+      "path": ".github/scripts/verify_apple_stt_contract.py",
+      "sha": "788c1164ece6d5ebe50d357d5405378063e1121a",
+      "bytes": 3194
+    },
+    {
+      "path": ".github/scripts/verify_ios26_floor.py",
+      "sha": "9f746d3c76706cc99312baca58ec28bbd2093bed",
+      "bytes": 1218
+    },
+    {
+      "path": ".github/scripts/verify_public_mirror.py",
+      "sha": "ca9491f979edb9d9230f09ecc38fcf94caf7031f",
+      "bytes": 5273
+    },
+    {
+      "path": ".github/scripts/verify_retired_native_chat.py",
+      "sha": "10c4a9af056844a3cdd85989b4534e752d123e34",
+      "bytes": 6795
+    },
+    {
+      "path": ".github/workflows/altstore-minimal-ipa.yml",
+      "sha": "b812c4557784630910e1aee69617734274b27137",
+      "bytes": 7888
+    },
+    {
+      "path": ".github/workflows/public-ios-build.yml",
+      "sha": "3e2d4b027e1680634f6ab281edcfe1a1654a8e89",
+      "bytes": 8556
+    },
+    {
+      "path": ".github/workflows/r04-2-native-authoring.yml",
+      "sha": "535a5d0da3a7595d7c5b62f2a7c47c60f3b985c7",
+      "bytes": 17557
+    },
+    {
+      "path": ".github/workflows/r04-2-privacy-retirement-validation.yml",
+      "sha": "052f2e25262aabb360cdd466898509b644148a30",
+      "bytes": 7637
+    },
+    {
+      "path": ".github/workflows/r04-modern-apple-sdk27.yml",
+      "sha": "6f3685230613ec659d686f6fc919b7bc099416d6",
+      "bytes": 10552
+    },
+    {
+      "path": ".gitignore",
+      "sha": "00e89857495a4533d58ad6db97323e3c1164417c",
+      "bytes": 544
+    },
+    {
+      "path": "ALTSTORE_COMPAT_BUILD.md",
+      "sha": "63078249dc8876c33fae82c1cfb8f4a59ba12f49",
+      "bytes": 2392
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/project.pbxproj",
+      "sha": "719cba5e01da58f048f0491cc24e0e293be2b22f",
+      "bytes": 93383
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+      "sha": "919434a6254f0e9651f402737811be6634a03e9c",
+      "bytes": 135
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
+      "sha": "18d981003d68d0546c4804ac2ff47dd97c6e7921",
+      "bytes": 238
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "sha": "5fd343d2354967bfd4332f27cb0174d60daee732",
+      "bytes": 596
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/xcshareddata/xcschemes/aReuImpress-iPhone-AltStore.xcscheme",
+      "sha": "a46d62f59a8d5c07fef50405c28b55e46abd6eaf",
+      "bytes": 2931
+    },
+    {
+      "path": "aReuImpress-iPhone.xcodeproj/xcshareddata/xcschemes/aReuImpress-iPhone.xcscheme",
+      "sha": "52500fa6a2d8c6ec0a9a469a7a90e13511f13a3c",
+      "bytes": 4021
+    },
+    {
+      "path": "aReuImpress-iPhone.xcworkspace/contents.xcworkspacedata",
+      "sha": "2cd4275b6a90b002977213a17f4b7527d54bb8c0",
+      "bytes": 236
+    },
+    {
+      "path": "aReuImpress-iPhone.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
+      "sha": "18d981003d68d0546c4804ac2ff47dd97c6e7921",
+      "bytes": 238
+    },
+    {
+      "path": "aReuImpress-iPhone.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings",
+      "sha": "54782e32fdc67a492a81269a1347cacb4a7f9f10",
+      "bytes": 263
+    },
+    {
+      "path": "aReuImpress-iPhone/aReuImpress-iPhone.entitlements",
+      "sha": "a5f8b886389ccbccf44def46e06fb1c64bbfafae",
+      "bytes": 532
+    },
+    {
+      "path": "aReuImpress-iPhone/aReuImpress-iPhoneDebug.entitlements",
+      "sha": "a5f8b886389ccbccf44def46e06fb1c64bbfafae",
+      "bytes": 532
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/AppDelegate.swift",
+      "sha": "93ce9b0bdf165369cbba201735a0d1a3b5aee9d8",
+      "bytes": 2625
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/bridge-header.h",
+      "sha": "909bf062302b03552a67b031f570c1636bdfa2d8",
+      "bytes": 184
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/ImBaseProtocol.swift",
+      "sha": "b98476f47a593f514b91ddf89cf4035424243bb8",
+      "bytes": 698
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/ImBaseViewController.swift",
+      "sha": "3caec58b5d4845f8b45c64e26b62cc997df39135",
+      "bytes": 2479
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/ImBaseViewModel.swift",
+      "sha": "d94adc51d790c82cac69c81255fd423f2b2e33d2",
+      "bytes": 175
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/ImNavigationViewController.swift",
+      "sha": "51209943e6fd49373c3dd4eebfcd4d68f59548ad",
+      "bytes": 679
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/ImTabBarViewController.swift",
+      "sha": "1b0b1ce01cbe9300a4c5f05f594a41886aa1fee8",
+      "bytes": 2642
+    },
+    {
+      "path": "aReuImpress-iPhone/Base/SceneDelegate.swift",
+      "sha": "242b2ebe78becc40ca951d7d60362219db1cf4c4",
+      "bytes": 5608
+    },
+    {
+      "path": "aReuImpress-iPhone/DataBase/ImDBHandler.swift",
+      "sha": "f6570f239876ee8c11e63d7dc25a77ca32ee9616",
+      "bytes": 16403
+    },
+    {
+      "path": "aReuImpress-iPhone/DataBase/ImDBTableType.swift",
+      "sha": "444894be0bd44a6e8cd36ce082c6c0afdc4dc882",
+      "bytes": 434
+    },
+    {
+      "path": "aReuImpress-iPhone/DataBase/ImpressDBHandler+NetworkShare.swift",
+      "sha": "89ca300cebbf06677bda4000b05428ae9699bcff",
+      "bytes": 142
+    },
+    {
+      "path": "aReuImpress-iPhone/DataBase/V3/FSRS6ReviewCalculator.swift",
+      "sha": "d9948d0e94d42804c0d1f1b1b126f918b0490aa7",
+      "bytes": 4095
+    },
+    {
+      "path": "aReuImpress-iPhone/DataBase/V3/ReviewWCDBRepository.swift",
+      "sha": "20a2a9d12a6166863d560ef09398f5f7e34a5ae3",
+      "bytes": 37655
+    },
+    {
+      "path": "aReuImpress-iPhone/Info.plist",
+      "sha": "9ac626f13f5bcb40948cf3a0f764eaa7f825267c",
+      "bytes": 6025
+    },
+    {
+      "path": "aReuImpress-iPhone/Model/ImCard/ImCardModel.swift",
+      "sha": "c48102c7c98aa43eea13586418c5c1bd6ea3aea3",
+      "bytes": 4869
+    },
+    {
+      "path": "aReuImpress-iPhone/Model/ImNote/ImNoteModel.swift",
+      "sha": "b573c163df184be0a0327b93a3ea3a4e91d99682",
+      "bytes": 1145
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "sha": "eb8789700816459c1e1480e0b34781d9fb78a1ca",
+      "bytes": 123
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "sha": "a0caf0bf019d8f1a5a89d405e296785349cd2bb5",
+      "bytes": 1160
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_120.png",
+      "sha": "bd5bdf9a26ba2cae6d795c30d9f699bebeede322",
+      "bytes": 25573
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_180.png",
+      "sha": "65d28cc1984cf706cce3f4059647a9a8ded31f58",
+      "bytes": 56083
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_40.png",
+      "sha": "6b84184cc92c7087f67e0d4a04d58a35f3fd1857",
+      "bytes": 3625
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_58.png",
+      "sha": "894f3d52817c02158534936fd78e2a6601542f2e",
+      "bytes": 6855
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_60.png",
+      "sha": "fcb469c6d79da5286f798283057526eabdabb0a5",
+      "bytes": 7259
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_80.png",
+      "sha": "a78b88d4a2b010dfe5bdfa595828e5781493741e",
+      "bytes": 12067
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/AppIcon.appiconset/icon_87.png",
+      "sha": "4ace8e7e0954af127c9942e50924581ca7bdca0d",
+      "bytes": 14004
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Assets.xcassets/Contents.json",
+      "sha": "73c00596a7fca3f3d4bdd64053b69d86745f9e10",
+      "bytes": 63
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Base.lproj/LaunchScreen.storyboard",
+      "sha": "3fb3a43a072b4495f065725bbd3cf39fa665ffef",
+      "bytes": 1903
+    },
+    {
+      "path": "aReuImpress-iPhone/Resources/Base.lproj/Main.storyboard",
+      "sha": "426f6a2bca2a862d856b968b96b49c4fb2bdde95",
+      "bytes": 1948
+    },
+    {
+      "path": "aReuImpress-iPhone/Route/ImpressRoute.swift",
+      "sha": "7dc415a02bd6f0d426e13cc6f4d4dfdc2ef96020",
+      "bytes": 682
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Constansts/AttributedStringKey.swift",
+      "sha": "088eb0786553e4d451d67c72ab1868f541b6bdfa",
+      "bytes": 514
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Constansts/ImColorConstants.swift",
+      "sha": "33de8c82d4bf3e092c6155e5f91dcd74f6995d86",
+      "bytes": 77767
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Constansts/ImConstants.swift",
+      "sha": "d2df094bf14c174b848096a3689d456c74865dc0",
+      "bytes": 5758
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Constansts/ImNotificationName.swift",
+      "sha": "a5c34410f057131aeca41607c6388170a225eb7e",
+      "bytes": 322
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Constansts/MarkdownKitRenderer.swift",
+      "sha": "1339f0a5ac8a5e1c84815c7ba224b4f99b7f6ad6",
+      "bytes": 2008
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Extensions/ProtocolTool/LXFNibloadable.swift",
+      "sha": "785c78690b263cb39074ffda0fcfef85421ef348",
+      "bytes": 4076
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Extensions/UIView/UIImage+.swift",
+      "sha": "d262541f3253a9239e8a21e9f758f6b1d772aa26",
+      "bytes": 5325
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Extensions/UIView/UITextView+Typing.swift",
+      "sha": "f11a231f73cc86c6dc95b1cd16e3d1b3533c7232",
+      "bytes": 755
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Extensions/UIView/UIVIew+.swift",
+      "sha": "04e1173f23e47f41435579f365b87f99684f5baa",
+      "bytes": 4941
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Extensions/VC/ImAlert/ImAlertController.swift",
+      "sha": "11fe98d2c8ae27b776940c571f6961212bd0b673",
+      "bytes": 6117
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImExtractTextView/ImExtractTextView.swift",
+      "sha": "3e8e28b4b224dbb282439d1bdd1bf9c4be084e04",
+      "bytes": 4096
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFileManager/ImiCloudBackupManager.swift",
+      "sha": "41a8f261a8aabc707d28512d19fcc9675cff796a",
+      "bytes": 9862
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFileManager/ImiCloudImportManager.swift",
+      "sha": "7a183d02339f62b6a3893d85d084da6368b5b549",
+      "bytes": 11904
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFileManager/ImObsidianManager.swift",
+      "sha": "79d085189ffa34bd49c154b275314fed36cc156e",
+      "bytes": 42190
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFileManager/ImpressV3BackupArchive.swift",
+      "sha": "8a48c8a09191c5a8dbf5da1b90856f3ca9286ac8",
+      "bytes": 17204
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFileManager/ImpressV3BackupCoordinator.swift",
+      "sha": "5406144f3390d6115c98990ebc104241842ad887",
+      "bytes": 34697
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImFloatingButtonManager/ImFloatingButtonManager.swift",
+      "sha": "1dec9def5f3b7ec6759a237277b3290ae4865525",
+      "bytes": 4922
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImLoading/ImLoading.swift",
+      "sha": "c498d78c599d0a96fe6dcdfc238a991c3b437694",
+      "bytes": 1376
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImMusicPlay/ImMusicPlayer.swift",
+      "sha": "e35cf01b78bc0059df01e3aa679ffe7943b0d06d",
+      "bytes": 5658
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImNotification/ImNotificationHandler.swift",
+      "sha": "be7c0c5e79b7386d04d3430d58c0426a07167060",
+      "bytes": 10877
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImNotification/ImpressV3NotificationCoordinator.swift",
+      "sha": "fedea8fd4d7ef61a6a7db0222868a68092de7fbf",
+      "bytes": 13782
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechInputUI.swift",
+      "sha": "8bb8cd4677b92be1b2059d9c4f246b1e45c047c4",
+      "bytes": 14433
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechService.swift",
+      "sha": "2e9449db33e25697b7908996d8d607ce1740d540",
+      "bytes": 18284
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechSettingsViewController.swift",
+      "sha": "79f946b0986ebceae05f3d015f73fa15242d468d",
+      "bytes": 7698
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/Animator.swift",
+      "sha": "197ca585c68d80edb2f049472eabb0d19e9ccf16",
+      "bytes": 3828
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/Array+Extensions.swift",
+      "sha": "4fa52b3dbf712faf1b574dd3552778aa7fc9b188",
+      "bytes": 1815
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/CGPoint+Extensions.swift",
+      "sha": "03dd388b03db4d27149f55b6809a65c9e6e33904",
+      "bytes": 1276
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/CGVector+Extensions.swift",
+      "sha": "bb12cf1543f9054dac1e69836432840913c49958",
+      "bytes": 3815
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/PanGestureRecognizer.swift",
+      "sha": "1be84878f0d61179354d2002103df6ba643585f3",
+      "bytes": 2687
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/StringUtils.swift",
+      "sha": "191db5dc1cd28ad8f6378df766a60bbb268efe84",
+      "bytes": 1872
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/TapGestureRecognizer.swift",
+      "sha": "934e84b1009cd7250fd8aef5506427dc21077673",
+      "bytes": 1944
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/Internal/UIView+Extensions.swift",
+      "sha": "e491c1b446e0cf6ce5f1a8f36e5bc2bcb3d8f963",
+      "bytes": 1552
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCard/CardAnimationOptions.swift",
+      "sha": "013a01422328fb64d9ea79e340049aed8490d146",
+      "bytes": 3681
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCard/CardAnimator.swift",
+      "sha": "ded9bb774ea6b84a2c7a38dd65c988e34f8903d9",
+      "bytes": 9384
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCard/SwipeCard.swift",
+      "sha": "7dc9c3013d223b92e4bdfabd3e7bd574cdf19f16",
+      "bytes": 7886
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCard/SwipeCardDelegate.swift",
+      "sha": "5dae8ca40f615faefa10d43beaf90bc80a938d4e",
+      "bytes": 1522
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCard/SwipeView.swift",
+      "sha": "0096a19ce5512a5cf093d0b4c9885e8955a1df0a",
+      "bytes": 8561
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/CardStackAnimationOptions.swift",
+      "sha": "e51e0e40d1aa5c76e5abd205b6160a8086d5813b",
+      "bytes": 3075
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/CardStackAnimator.swift",
+      "sha": "b9077bf80118883b0aeda8c8d93444905b6bb110",
+      "bytes": 7893
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/CardStackStateManager.swift",
+      "sha": "3fdefc05a51e4320b6a5c2d44d2dde250f8c5568",
+      "bytes": 6298
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/SwipeCardStack.swift",
+      "sha": "07e657f749be4a715718944a84bd447f5708e3a3",
+      "bytes": 20536
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/SwipeCardStackDataSource.swift",
+      "sha": "00914dcb16d9d5db3e4c081f5f3c285f93e38dcd",
+      "bytes": 1384
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeCardStack/SwipeCardStackDelegate.swift",
+      "sha": "55c0f6188e1799a88bae8f6e10270cd731b8323b",
+      "bytes": 1928
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImSwipQuickCard/SwipeDirection.swift",
+      "sha": "255119064d90f8fd20a2e9d98544e4d1c94f0613",
+      "bytes": 2670
+    },
+    {
+      "path": "aReuImpress-iPhone/Utils/Public/ImTTSManager/ImTTSManager.swift",
+      "sha": "8386ec020df77c8bb3bd46e943816d117b492d43",
+      "bytes": 5750
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCalibrationVC/ImpressCalibrationLocalStore.swift",
+      "sha": "13ba901aaf4c81ef36dc22d854badff281628a76",
+      "bytes": 6421
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCalibrationVC/ImpressCalibrationReminderCoordinator.swift",
+      "sha": "06ba76764bd0dd449259a228df0a9e8b18fda6a2",
+      "bytes": 8153
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCalibrationVC/ImpressCalibrationViewController.swift",
+      "sha": "5e1deef98fe1c80dd25051f944939e1853962423",
+      "bytes": 24652
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImCardListVC/ImCardListViewController.swift",
+      "sha": "9473d26310038749652e88ee420fa3976f569483",
+      "bytes": 7746
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImCardViewController.swift",
+      "sha": "02efbf1666926d1c104aaf99ce4d784e97be1b4d",
+      "bytes": 21484
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3BatchImportViewController.swift",
+      "sha": "f6967b3dfb5080f9d3fd1ff3bfe87bd4afe0bdea",
+      "bytes": 27492
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3CardCollectionViewController.swift",
+      "sha": "bedf29b93d79189210f29f0b8da916f00af38fe2",
+      "bytes": 11493
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3CardComposerViewController.swift",
+      "sha": "613842a35d2feb34aaaed59a7382b4883d7cfcdd",
+      "bytes": 26945
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3ReviewEnvironment.swift",
+      "sha": "a617d62d218a25676db8a6e589f3fbbcfae1356c",
+      "bytes": 886
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3ReviewViewController.swift",
+      "sha": "ac8ef09758f091d35aba5284593bbd0f86198a39",
+      "bytes": 78479
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImGridVC/ImGridViewController.swift",
+      "sha": "1f86709ca856a2aac59852ae992b4c524610389c",
+      "bytes": 8760
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImImagePreview/ImImagePreviewViewController.swift",
+      "sha": "8fcf810fb0912b8ea119f48184b76ea69af6c81e",
+      "bytes": 3804
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift",
+      "sha": "b6fd6c85de9da3f3ecb99e50331172e92e65c06b",
+      "bytes": 47319
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImpressNoteListTableViewController.swift",
+      "sha": "f2763bc5f7a642791626ece07614475101a72a98",
+      "bytes": 32294
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImSettingVC/ImpressV3BackupSettingsViewController.swift",
+      "sha": "ad8c2f8dd8b682e31345a7c7b0ef57aa47c82a70",
+      "bytes": 12384
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImSettingVC/ImpressV3PromptLibraryViewController.swift",
+      "sha": "afc2a675293143a36e0fa89df957ce32f10ff198",
+      "bytes": 15438
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImSettingVC/ImSettingsViewController.swift",
+      "sha": "e09621e2db13b96236463326fd5a8cfbe0887ff6",
+      "bytes": 2096
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImSubmit/ImSubmitProtocol.swift",
+      "sha": "368788833aa7b7b3e195e2ee59377093ad7ed761",
+      "bytes": 1560
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImSubmit/ImSubmitViewController.swift",
+      "sha": "63d05619235d59fc9fab982a54ec239181ccd48b",
+      "bytes": 25649
+    },
+    {
+      "path": "aReuImpress-iPhone/VC/SubVCs/ImWebVC/ImWebViewController.swift",
+      "sha": "f800606faad8cccc980dfd2655a526a262431f57",
+      "bytes": 15618
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImBaseTableViewCell.swift",
+      "sha": "b47da96d3a6efe438115fca3b6039eca64a33153",
+      "bytes": 870
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImCard/CardList/ImCardListCell.swift",
+      "sha": "ad050cec2a0d9a6e41d7c0a320de94e14c85633c",
+      "bytes": 4054
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImCard/ImImageCardView.swift",
+      "sha": "205224897852e330da55f171a756a47bea886104",
+      "bytes": 2584
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImCard/ImMemoryCard/ImMemoryCardOverlay.swift",
+      "sha": "fdb7df57994517a26d9e5684faf0ac072434fcab",
+      "bytes": 12786
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImCard/ImMemoryCard/ImMemoryCardView.swift",
+      "sha": "cf3d78f672bc48c4f3afcbf2c2756c88bc65816c",
+      "bytes": 13811
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImCard/ImMultipleChoiceCardView.swift",
+      "sha": "4d9485c3a69a6dc226793c47c52f0e6241a0c5eb",
+      "bytes": 13362
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImSetting/ImSettingSliderCell.swift",
+      "sha": "c5ea8d0f61dccd904def9564eaf41e37f18a51de",
+      "bytes": 4605
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImSetting/ImSettingSwitchCell.swift",
+      "sha": "d058264f8b3d62a7cef7902ee542a7826010cfdb",
+      "bytes": 1992
+    },
+    {
+      "path": "aReuImpress-iPhone/View/ImSubmit/ImSubmitCell.swift",
+      "sha": "23d38e0e4f679aeb3149f54c7e7883a2a36cd73d",
+      "bytes": 11269
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImCard/ImCardList/ImCardListViewModel.swift",
+      "sha": "47ef3763c98b4408e3c5c0ecea89981b30eb93b6",
+      "bytes": 6558
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImCard/ImCardList/ImCardListViewModelProtocol.swift",
+      "sha": "48731ddbdc63af6817c91501ed3c491ea0e1e121",
+      "bytes": 1112
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImCard/ImCardViewModel.swift",
+      "sha": "5d1f7bab10d2a7dc79de2af050105277fdad50bc",
+      "bytes": 24106
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImCard/ImCardViewModelProtocol.swift",
+      "sha": "cde2d445029e190f347229befa9db30db8309c0d",
+      "bytes": 1851
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImNotes/ImpressNotesViewModel.swift",
+      "sha": "b0269b79b0fb09b4e7c27754dc1480d505c424f3",
+      "bytes": 12779
+    },
+    {
+      "path": "aReuImpress-iPhone/ViewModel/ImNotes/ImpressNotesViewModelProtocol.swift",
+      "sha": "40f8217dbddd3cfc9c6db15ba5f276dbdbdf8b26",
+      "bytes": 1535
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/aReuImpress_iPhoneTests.swift",
+      "sha": "47e1fb5bb2dab5891c56cc06a7193e583113bcb5",
+      "bytes": 1695
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/Info.plist",
+      "sha": "64d65ca495770bdc9600e58687865b73a36bed3a",
+      "bytes": 727
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/V3/ImpressCalibrationIntegrationTests.swift",
+      "sha": "763456ea46976d313fe9b4f7e383627aaeff7fa8",
+      "bytes": 7405
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/V3/ImpressV3NotificationIntegrationTests.swift",
+      "sha": "5ebcfc5f3fba705a7d1b070e8c9145f1e67082d8",
+      "bytes": 8753
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/V3/ImpressV3SwipeIntegrationTests.swift",
+      "sha": "92acbdd5d7755679adab0eda6919e6704d3ca7e1",
+      "bytes": 41895
+    },
+    {
+      "path": "aReuImpress-iPhoneTests/V3/ReviewWCDBRepositoryTests.swift",
+      "sha": "29458729b9875228f6049b3c8a06a26f684bc4c5",
+      "bytes": 78556
+    },
+    {
+      "path": "BUILD_AND_SIGN.md",
+      "sha": "db0e7f8f912e8081bfc047439347bb3c464cc072",
+      "bytes": 4729
+    },
+    {
+      "path": "CALIBRATION_V3_2_INTEGRATION.md",
+      "sha": "bcecd9735a5da25729b6d25c63f81f7c4936672d",
+      "bytes": 8145
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Package.swift",
+      "sha": "243966c1b4d52fcc86fc60d9a784d7546efc8c61",
+      "bytes": 394
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/CalibrationCheckInCore.swift",
+      "sha": "592561e4a29a48af9b2ae42fb9cc1eac5e31b5ed",
+      "bytes": 8857
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/CalibrationScoreCore.swift",
+      "sha": "fd35364f83f62e95778c61ed9ba73d6c5b51c16d",
+      "bytes": 10284
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ImpressBatchParser.swift",
+      "sha": "3616994dee6c931a3c5dd4ac3d429f382190dc38",
+      "bytes": 12792
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ImVaultSyncCore.swift",
+      "sha": "4434ba35e41423e28f4f87d250e5dc5f793f5880",
+      "bytes": 15801
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ReminderPlanner.swift",
+      "sha": "4a0db5002ffdc8da2e64b1f7e9b2c12920e8bfac",
+      "bytes": 3666
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ReviewContracts.swift",
+      "sha": "9356c2d4e5900f32c651b83a65a32f994894ca78",
+      "bytes": 3839
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ReviewQueueBuilder.swift",
+      "sha": "5b46ab0629aac08d6eb5c0f34b4a708d3f7f272c",
+      "bytes": 2374
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ReviewReminderIdentifiers.swift",
+      "sha": "4d5427f79e440ba333681eb300566ea1c54f19ad",
+      "bytes": 711
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Sources/ImpressReviewCore/ReviewSessionCoordinator.swift",
+      "sha": "69e6accce4c155e9fd2620fee87710b86930761d",
+      "bytes": 5537
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/CalibrationCheckInCoreTests.swift",
+      "sha": "e46065e105c1fb0883d15cf06120fd5e7b7eddcc",
+      "bytes": 6496
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/CalibrationScoreCoreTests.swift",
+      "sha": "f9e5141263aa73d080e8113a8e13c74a7438fa2b",
+      "bytes": 5646
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/ImpressBatchParserTests.swift",
+      "sha": "8d61d83c9e1cc035e19d3f9a2144da6a5cda2d82",
+      "bytes": 3142
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/ImVaultSyncCoreTests.swift",
+      "sha": "1812db59cba8ab1a49601af594b21296359301a5",
+      "bytes": 7400
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/ReminderPlannerTests.swift",
+      "sha": "e12d02b734356bc30f3a46b40baf19a69c93424e",
+      "bytes": 5229
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/ReviewQueueBuilderTests.swift",
+      "sha": "7482ec576024e496e7065cfc105da49a3233987e",
+      "bytes": 2720
+    },
+    {
+      "path": "Packages/ImpressReviewCore/Tests/ImpressReviewCoreTests/ReviewSessionCoordinatorTests.swift",
+      "sha": "5de1fff312622e0f876939f1e0712dce3c702121",
+      "bytes": 8520
+    },
+    {
+      "path": "Podfile",
+      "sha": "6a011eee42737212673b813643e471fc38f4c639",
+      "bytes": 922
+    },
+    {
+      "path": "Podfile.lock",
+      "sha": "f85b6b0f146e2d614c4b397e6c6e2dc88998a9bb",
+      "bytes": 1006
+    },
+    {
+      "path": "PUBLIC_BUILD_CONTRACT.md",
+      "sha": "786c1eba28604f15e0b23574a2df2c47d1abd309",
+      "bytes": 8966
+    },
+    {
+      "path": "README.md",
+      "sha": "c07bfa4ad110252a79201ca2a306efa16ab40143",
+      "bytes": 6951
+    },
+    {
+      "path": "SMOKE_TEST_MATRIX.md",
+      "sha": "1b0811cf4443bdc2e7c60990b283161e5a004286",
+      "bytes": 6390
+    },
+    {
+      "path": "SOURCE_MANIFEST.json",
+      "sha": "14963630e5b7f0dcf9c01d090ec19ace5bd4ddfc",
+      "bytes": 10791
+    }
+  ]
+}

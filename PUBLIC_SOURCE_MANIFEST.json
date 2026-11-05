@@ -1,0 +1,27 @@
+{
+  "mirror_type": "sanitized_source_snapshot",
+  "source_repository": "aRReuu/Impress-iphone",
+  "source_branch": "main",
+  "source_commit": "c5d4e25a80feed66c44044a0afa7af2cad658b7c",
+  "target_repository": "aRReuu/newtest",
+  "target_branch": "main",
+  "source_tracked_file_count": 698,
+  "eligible_source_files": 636,
+  "excluded_source_files": 62,
+  "excluded_image_or_icon_files": 24,
+  "english_translated_document_count": 24,
+  "images_and_icons_in_mirror": 0,
+  "excluded_material": [
+    "image and icon files",
+    "private Git history",
+    "Xcode user state",
+    "private historical logs",
+    "signing and credential files",
+    "private CI workflow"
+  ],
+  "retained_localized_source_strings": true,
+  "retained_functional_test_fixture_strings": true,
+  "english_documentation_note": "Documentation was translated by an offline machine-translation model. Automated language checks do not certify complete semantic fidelity.",
+  "expected_public_file_count": 639,
+  "ci_policy": "Static public safety check only; no automatic iOS full build, CocoaPods installation, or release dispatch."
+}
