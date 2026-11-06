@@ -1575,22 +1575,20 @@ final class ImVaultDocumentController: UIViewController {
         }
         withVerifiedLiveDocument { [weak self] latest in
             guard let self else { return }
-            do {
-                let repository = try ImpressV3ReviewEnvironment.repository()
-                // Only the newly coordinated source snapshot may be offered
-                // as optional context. Chat still separately checks its SHA
-                // immediately before sending.
-                let key = "note:" + (try ImpressBatchSourceKey.encode(latest.identity))
-                let canShareWholeNote = latest.markdown.utf8.count <= 8_000
-                let chat = ImpressAINativeChatViewController(
-                    question: V3L("来源笔记：") + latest.identity.relativePath,
-                    answer: canShareWholeNote ? latest.markdown : nil,
-                    repository: repository, sourceKey: key,
-                    sourceVersion: latest.digest, noteIdentity: latest.identity)
-                self.navigationController?.pushViewController(chat, animated: true)
-            } catch {
-                self.showVaultError(V3L("无法打开笔记讨论"), error: error)
-            }
+            // The Vault was read back immediately before this user action.
+            // Preparing the browser draft never grants write access or sends
+            // data; the user must tap Insert and then Send in DeepSeek.
+            let markdown = latest.markdown.utf8.count <= 8_000
+                ? latest.markdown : nil
+            let prompt = ImpressAIChatPromptSelection.selectedTemplate()?.content
+                ?? UserDefaults.standard.string(forKey: "kSystemPrompt")
+            let payload = ImpressV3DeepSeekHandoff.makeNotePayload(
+                title: latest.identity.relativePath,
+                markdown: markdown, userPrompt: prompt)
+            let web = ImWebViewController.forReviewHandoff(text: payload)
+            let navigation = ImNavigationViewController(rootViewController: web)
+            navigation.modalPresentationStyle = .fullScreen
+            self.present(navigation, animated: true)
         }
     }
 
