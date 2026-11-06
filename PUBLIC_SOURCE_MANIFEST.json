@@ -22,6 +22,13 @@
   "retained_localized_source_strings": true,
   "retained_functional_test_fixture_strings": true,
   "english_documentation_note": "Documentation was translated by an offline machine-translation model. Automated language checks do not certify complete semantic fidelity.",
-  "expected_public_file_count": 639,
-  "ci_policy": "Static public safety check only; no automatic iOS full build, CocoaPods installation, or release dispatch."
+  "expected_public_file_count": 641,
+  "ci_policy": "Public source safety, isolated JS DOM bridge tests, app route checks, and Swift syntax parse only; no Xcode build, CocoaPods install/update, or release dispatch.",
+  "post_mirror_changes": {
+    "date": "2026-11-07",
+    "scope": "Direct changes on newtest/main after the original sanitized private-source snapshot: DeepSeek DOM integration, native/web STT, app-wide OCR, note translation, card video capture and cancellation, linked native revision entry, offline tests.",
+    "private_source_revision_unchanged": true,
+    "validation": "Static public-source safety, offline Node DOM bridge checks, feature-route assertions, and Swift syntax parse. No iOS type-check/build, physical device validation, or IPA.",
+    "commit_range": "f0b5adf2fa02cc31ac74d37086fe0b87033e4260..4bf1123bd852efeecbb0a26339c9fdfb68b0ead9"
+  }
 }
