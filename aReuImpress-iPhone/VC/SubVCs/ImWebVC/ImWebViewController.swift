@@ -32,6 +32,25 @@ enum ImpressV3DeepSeekHandoff {
         请帮助我检验理解中的假设、因果与遗漏，通过必要的追问引导我自主推导。不要直接假定参考答案正确。
         """
     }
+
+    static func makeNotePayload(title: String, markdown: String?,
+                                userPrompt: String?) -> String {
+        let custom = userPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let learningStyle = custom?.isEmpty == false ? custom!
+            : "采用第一性原理和奥卡姆剃刀，辨别假设与证据，只保留必要的解释。"
+        let material = markdown ?? "正文超过本次授权的 8 KB 限额，仅提供标题。请在笔记内明确选择片段后再提交。"
+        return """
+        [学习方式]
+        \(learningStyle)
+
+        [来源笔记]
+        \(title)
+        \(material)
+
+        [本次请求]
+        请围绕以上已选择的笔记内容，协助核查观点、理解与遗漏，不要假定原文结论必然正确。
+        """
+    }
 }
 
 
