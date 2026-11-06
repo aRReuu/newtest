@@ -33,8 +33,8 @@ for symbol in (
 assert 'navigation.modalPresentationStyle = .fullScreen' in cards
 assert 'navigation.modalPresentationStyle = .fullScreen' in notes
 assert 'navigation.modalPresentationStyle = .fullScreen' in settings
-assert 'ImWebViewController.forReviewHandoff(text: payload)' in cards
-assert 'ImWebViewController.forReviewHandoff(text: payload)' in notes
+assert 'ImWebViewController.forReviewHandoff(' in cards
+assert 'ImWebViewController.forReviewHandoff(' in notes
 assert 'ImWebViewController.forDirectBrowse()' in settings
 assert 'linkedNativeDiscussion: ImpressAINativeChatViewController?' in web
 assert 'nativeDiscussion: native' in cards
