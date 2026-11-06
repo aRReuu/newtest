@@ -667,6 +667,7 @@ final class ImpressV3CardComposerViewController: UIViewController,
             showProblem(V3L("无法确定卡片内容版本，请重新打开编辑器。"))
             return
         }
+        let sourceForSelection = capturedVideoSource
         processingPhoto = true
         saveItem?.isEnabled = false
         cancelVideoButton.isHidden = false
@@ -682,7 +683,9 @@ final class ImpressV3CardComposerViewController: UIViewController,
                     return
                 }
                 self.processingPhoto = false
-                self.removeCapturedVideoSource()
+                if self.capturedVideoSource == sourceForSelection {
+                    self.removeCapturedVideoSource()
+                }
                 self.saveItem?.isEnabled = !self.saving
                 self.cancelVideoButton.isHidden = true
                 switch result {
