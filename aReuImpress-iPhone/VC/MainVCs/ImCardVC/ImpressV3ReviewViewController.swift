@@ -903,7 +903,15 @@ final class ImpressV3ReviewViewController: UIViewController {
                     question: latest.question,
                     answer: answerWasRevealed ? context : nil,
                     userPrompt: prompt)
-                let web = ImWebViewController.forReviewHandoff(text: payload)
+                let linkedNote = latest.sourceNotePath.flatMap {
+                    try? ImpressBatchSourceKey.decode($0)
+                }
+                let native = ImpressAINativeChatViewController(
+                    question: latest.question, answer: answerWasRevealed ? context : nil,
+                    cardID: item.cardID, contentRevision: latest.contentRevision,
+                    repository: repo, linkedNoteIdentity: linkedNote)
+                let web = ImWebViewController.forReviewHandoff(
+                    text: payload, nativeDiscussion: native)
                 let navigation = ImNavigationViewController(rootViewController: web)
                 navigation.modalPresentationStyle = .fullScreen
                 self.present(navigation, animated: true)
