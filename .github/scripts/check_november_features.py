@@ -38,6 +38,7 @@ assert 'ImWebViewController.forReviewHandoff(text: payload)' in notes
 assert 'ImWebViewController.forDirectBrowse()' in settings
 assert 'ImpressSpeechAccessory.presentOCR(for: questionView)' in composer
 assert 'ImpressSpeechAccessory.presentWeb(from: self)' in web
+assert 'ImpressSpeechAccessory.presentWebOCR(from: self)' in web
 
 for symbol in (
     'import VisionKit',
@@ -47,6 +48,9 @@ for symbol in (
     'ImpressSpeechTextBinding(view: field)',
     'camera, microphone',
     'self.onRecognized?(final)',
+    'ImpressGlobalTextInputTools: NSObject',
+    'UITextField.textDidBeginEditingNotification',
+    'UITextView.textDidBeginEditingNotification',
 ):
     assert symbol in speech, f"OCR/STT input lost {symbol}"
 
@@ -56,6 +60,7 @@ for symbol in (
     'beginVideoSelection(provider)',
     'removeCapturedVideoSource()',
     'impress.composer.ocr-camera',
+    'activeVideoImportToken == token',
 ):
     assert symbol in composer, f"Card media lost {symbol}"
 
@@ -69,6 +74,7 @@ for symbol in (
     assert symbol in notes, f"Translation reader lost {symbol}"
 
 assert '<key>NSCameraUsageDescription</key>' in plist
+assert 'ImpressGlobalTextInputTools.shared.install()' in read("aReuImpress-iPhone/Base/AppDelegate.swift")
 assert 'productionWriteEnabled = false' in vault
 assert 'productionWriteEnabled = true' not in vault
 print("November 2026 route and privacy checks PASS (static only)")
