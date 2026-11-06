@@ -1,5 +1,19 @@
 # Impress Current sole product demand and implementation compact
 
+## 2026-11-07 — Three-tab navigation and Flashcards calibration pull-down
+
+**Requirement status: recorded; implementation pending.** This user's newer navigation request overrides the historical four-tab behavior below, but does not change existing calibration scoring, reminder, Widget, backup, or data-safety contracts.
+
+1. **Tabs:** show only Flashcards, Notes, Settings (in order). Remove Calibration as a primary tab. Settings already has Learning Rhythm > Daily Calibration; preserve its existing navigation to `ImpressCalibrationViewController`, not a duplicate destination.
+2. **Flashcards drawer:** provide a compact Cartesian calibration preview immediately below the system-owned large-title header. Pull down from its exposed handle to reveal, swipe up within the drawer to collapse, and tap its plot (outside the date-range selector) to open the existing full Calibration controller. Expanded height equals the *measured distance from the system status bar's top to the bottom of the native large-title header*, used as a height reference only. Never cover the system status bar, large title or native navigation controls. Size dynamically instead of assuming a fixed iPhone size.
+3. **Resolution:** display day/month/year trend selection. Current canonical data supports latest seven calendar days at **daily resolution**, latest thirty days at **daily resolution**, and current year's twelve months at **monthly resolution**. Proposed unambiguous labels: "Last 7 days / Last 30 days / This year". Preserve user's requested day/month/year time perspectives without fabricating hourly measurements; one current-day value alone is a point, not a trend line.
+4. **Rendering:** the existing full Calibration view requires at least 174pt for its plot alone. The drawer is a reduced-height *chart preview*, not an embedded full `UITableViewController`. Reuse `CalibrationCartesianTrendRenderer`, `CalibrationScoreCore` and `ImpressCalibrationLocalStore.shared.trendRecords()`; use existing -5 / 0 / +5 axis, missing-data gaps, blue moving average, theme and accessibility. Do not introduce a separate score formula or persist redundant trend records.
+5. **Interaction:** hide or collapse the drawer without consuming SwipeCardStack left/up/right/down review scoring events. Attach pan only to its handle/chart region; animate Auto Layout constraints rather than recreating review cards, FSRS sessions, or their state. Provide accessible expand, collapse and open actions and preserve the review session on return.
+6. **Widget deep links:** `SceneDelegate.openCalibrationWidgetLink` currently looks for Calibration as a root Tab. Update `impress://calibration/{week|month|year}` to enter the existing Calibration screen from the Settings navigation path and preserve `selectWidgetPeriod`. Do not break the three existing Widget periods when changing the drawer's labels.
+7. **Acceptance:** verify exact three tabs and all languages, deep links, drawer height/safe area across devices and Dynamic Type, VoiceOver, chart data parity, empty-data rendering, Settings navigation, and absence of unintended swipe ratings. Use minimal targeted tests. Do not claim iOS build/device/IPA PASS from a documentation-only commit.
+
+---
+
 ## (2026-10-29 Official freeze: Impress Project-wide agile development, three-part L3 and IPA delivery agreement V3 (over later history)
 
 This section is user in SHA`5a798871361bc71cea1cb7ebd8627e647d2b6b81`** Permanent construction and acceptance process confirmed after the full release of SUCCESS**Change construction only/Test/Method of delegation, does not weaken any product business, security doors or real laboratory collections. The following sections are in conflict with this section, the old NOT RUN, the old ban and the old CI note are recorded in history.
