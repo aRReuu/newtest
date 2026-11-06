@@ -72,6 +72,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate
                 "恢复未完成：" + error.localizedDescription,
                 forKey: ImpressV3BackupCoordinator.failureKey)
         }
+        // All native UIKit text editors receive OCR + STT on the keyboard,
+        // except inputs with intentionally custom accessory bars.
+        ImpressGlobalTextInputTools.shared.install()
         // V3 alone handles notification routing; no retired reminder policy.
         ImpressV3NotificationCoordinator.shared.installDelegate()
         return true
