@@ -8,6 +8,8 @@
 import UIKit
 import ImageIO
 import WebKit
+import SwiftUI
+import Translation
 import ImpressReviewCore
 import MarkdownView
 
@@ -916,7 +918,12 @@ final class ImVaultDocumentController: UIViewController {
         }
         if document.identity.documentFormat == .markdown &&
            drawingDisplayFormat() == nil {
-            var extras: [UIMenuElement] = []
+            var extras: [UIMenuElement] = [
+                UIAction(title: V3L("全文译为简体中文"),
+                    image: UIImage(systemName: "character.book.closed")) {
+                    [weak self] _ in self?.openChineseTranslation()
+                }
+            ]
             if let diagrams = try? ImpressDiagramDocument.mermaidBlocks(
                 in: document.sourceBytes), !diagrams.isEmpty {
                 extras.append(UIAction(title: V3L("阅读 Mermaid 图形"),
@@ -1561,6 +1568,21 @@ final class ImVaultDocumentController: UIViewController {
         withVerifiedLiveDocument { [weak self] latest in
             self?.navigationController?.pushViewController(
                 ImpressAIQuestionGenerationViewController(document: latest), animated: true)
+        }
+    }
+
+    @objc private func openChineseTranslation() {
+        guard document.identity.documentFormat == .markdown,
+              drawingDisplayFormat() == nil else { return }
+        withVerifiedLiveDocument { [weak self] latest in
+            guard let self else { return }
+            // Read-only presentation from a just-verified Vault snapshot.
+            // Translation never writes the source, any card or local history.
+            let reader = ImpressNoteChineseTranslationReader(
+                sourceTitle: latest.identity.relativePath, original: latest.markdown)
+            let screen = UIHostingController(rootView: reader)
+            screen.title = V3L("中文译文")
+            self.navigationController?.pushViewController(screen, animated: true)
         }
     }
 
@@ -3612,5 +3634,82 @@ private final class ImpressMarkdownStateRelay: NSObject, WKScriptMessageHandler 
         let evidence = state + ":g=" + String(rendered) + "/" + String(total) +
             ":m=" + String(maths)
         DispatchQueue.main.async { [weak self] in self?.onState?(evidence) }
+    }
+}
+
+
+// MARK: - Full-document on-device Chinese translation (iOS 26+)
+private struct ImpressNoteChineseTranslationReader: View {
+    let sourceTitle: String
+    let original: String
+    @State private var showsOriginal = false
+    @State private var translated: String?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker(V3L("阅读版本"), selection: $showsOriginal) {
+                Text(V3L("中文译文")).tag(false)
+                Text(V3L("原文")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .padding()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(sourceTitle).font(.headline)
+                    if showsOriginal {
+                        Text(original).textSelection(.enabled)
+                    } else if let translated {
+                        Text(translated).textSelection(.enabled)
+                    } else if let errorMessage {
+                        Text(errorMessage).foregroundStyle(.secondary)
+                        Text(V3L("可切换至原文继续阅读。"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ProgressView(V3L("正在设备端翻译全文…"))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+            }
+        }
+        .translationTask(source: nil,
+                         target: Locale.Language(identifier: "zh-Hans")) { session in
+            guard !original.isEmpty else {
+                await MainActor.run { translated = "" }
+                return
+            }
+            var output = ""
+            do {
+                // Split long notes to avoid provider request-size failures,
+                // preserving the original order and newline boundaries.
+                for chunk in Self.translationChunks(original) {
+                    if Task.isCancelled { return }
+                    let response = try await session.translate(chunk)
+                    output += response.targetText
+                }
+                await MainActor.run { translated = output }
+            } catch {
+                await MainActor.run { errorMessage = error.localizedDescription }
+            }
+        }
+    }
+
+    private static func translationChunks(_ source: String) -> [String] {
+        var chunks: [String] = []
+        var chunk = ""
+        var count = 0
+        for character in source {
+            chunk.append(character)
+            count += 1
+            if count >= 1_200 && (character == "\n" || count >= 1_600) {
+                chunks.append(chunk)
+                chunk = ""
+                count = 0
+            }
+        }
+        if !chunk.isEmpty { chunks.append(chunk) }
+        return chunks
     }
 }
