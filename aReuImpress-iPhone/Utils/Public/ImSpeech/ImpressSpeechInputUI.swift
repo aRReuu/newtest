@@ -1,4 +1,6 @@
 import UIKit
+import Vision
+import VisionKit
 
 // MARK: - Text-only, version-aware insertion
 
@@ -109,10 +111,18 @@ enum ImpressSpeechAccessory {
             primaryAction: action, menu: nil)
         microphone.accessibilityLabel = V3L("开始语音输入")
         microphone.accessibilityIdentifier = "impress.speech.microphone"
+        let camera = UIBarButtonItem(title: nil,
+            image: UIImage(systemName: "text.viewfinder"),
+            primaryAction: UIAction { [weak field] _ in
+                guard let field else { return }
+                presentOCR(for: field)
+            }, menu: nil)
+        camera.accessibilityLabel = V3L("拍照识别文字")
+        camera.accessibilityIdentifier = "impress.ocr.keyboard"
         bar.items = [
             UIBarButtonItem(barButtonSystemItem: .flexibleSpace,
                             target: nil, action: nil),
-            microphone
+            camera, microphone
         ]
         bar.sizeToFit()
         return bar
@@ -140,13 +150,41 @@ enum ImpressSpeechAccessory {
         }
         owner.present(editor, animated: true)
     }
+    /// For a browser-hosted React input, the recognized string is delivered
+    /// directly to the web bridge. No temporary native chat draft is created.
+    static func presentWeb(from owner: UIViewController,
+                           onRecognized: @escaping (String) -> Void) {
+        let recorder = ImpressSpeechPanelViewController(onRecognized: onRecognized)
+        recorder.modalPresentationStyle = .pageSheet
+        if let sheet = recorder.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        owner.present(recorder, animated: true)
+    }
+
+    static func presentOCR(for field: UIView) {
+        guard let binding = ImpressSpeechTextBinding(view: field) else { return }
+        var responder: UIResponder? = field
+        while let current = responder {
+            if let owner = current as? UIViewController {
+                let camera = ImpressOCRCaptureViewController(binding: binding)
+                camera.modalPresentationStyle = .fullScreen
+                owner.present(camera, animated: true)
+                return
+            }
+            responder = current.next
+        }
+    }
+
 }
 
 // MARK: - Native presentation; provisional speech is never persisted
 
 @MainActor
 final class ImpressSpeechPanelViewController: UIViewController {
-    private let binding: ImpressSpeechTextBinding
+    private let binding: ImpressSpeechTextBinding?
+    private let onRecognized: ((String) -> Void)?
     private let service = ImpressSpeechService.shared
     private let titleLabel = UILabel()
     private let transcript = UITextView()
@@ -159,9 +197,17 @@ final class ImpressSpeechPanelViewController: UIViewController {
 
     init(binding: ImpressSpeechTextBinding) {
         self.binding = binding
+        self.onRecognized = nil
         super.init(nibName: nil, bundle: nil)
     }
-    required init?(coder: NSCoder) { fatalError("init(binding:) required") }
+
+    init(onRecognized: @escaping (String) -> Void) {
+        self.binding = nil
+        self.onRecognized = onRecognized
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("programmatic init required") }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -309,7 +355,11 @@ final class ImpressSpeechPanelViewController: UIViewController {
             }
             do {
                 let final = try await self.service.finish()
-                try self.binding.commit(final)
+                if let binding = self.binding {
+                    try binding.commit(final)
+                } else {
+                    self.onRecognized?(final)
+                }
                 self.recording = false
                 self.dismiss(animated: true)
             } catch {
@@ -343,6 +393,124 @@ final class ImpressSpeechPanelViewController: UIViewController {
                                       message: error.localizedDescription,
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: V3L("确定"), style: .default))
+        present(alert, animated: true)
+    }
+}
+
+
+// MARK: - On-device document-camera OCR; never writes the Vault or chat history
+@MainActor
+final class ImpressOCRCaptureViewController: UIViewController,
+                                            VNDocumentCameraViewControllerDelegate {
+    private let binding: ImpressSpeechTextBinding
+    private var started = false
+    private let status = UIActivityIndicatorView(style: .large)
+
+    init(binding: ImpressSpeechTextBinding) {
+        self.binding = binding
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("programmatic init required") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = ImpressV3Appearance.page
+        status.translatesAutoresizingMaskIntoConstraints = false
+        status.hidesWhenStopped = true
+        view.addSubview(status)
+        NSLayoutConstraint.activate([
+            status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            status.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !started else { return }
+        started = true
+        launchScanner()
+    }
+
+    private func launchScanner() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showProblem(V3L("当前设备不支持相机扫描。"))
+            return
+        }
+        let scanner = VNDocumentCameraViewController()
+        scanner.delegate = self
+        scanner.modalPresentationStyle = .fullScreen
+        present(scanner, animated: true)
+    }
+
+    func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+        controller.dismiss(animated: false) { [weak self] in
+            self?.dismiss(animated: true)
+        }
+    }
+
+    func documentCameraViewController(_ controller: VNDocumentCameraViewController,
+                                      didFailWithError error: Error) {
+        controller.dismiss(animated: false) { [weak self] in
+            self?.showProblem(error.localizedDescription)
+        }
+    }
+
+    func documentCameraViewController(_ controller: VNDocumentCameraViewController,
+                                      didFinishWith scan: VNDocumentCameraScan) {
+        // Image bytes never leave the device, and are never backed up.
+        let pages = (0..<scan.pageCount).compactMap { scan.imageOfPage(at: $0).cgImage }
+        controller.dismiss(animated: false) { [weak self] in
+            guard let self else { return }
+            status.startAnimating()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result: Result<String, Error> = Result {
+                    let text = try pages.map { page -> String in
+                        let request = VNRecognizeTextRequest()
+                        request.recognitionLevel = .accurate
+                        request.usesLanguageCorrection = true
+                        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+                        try VNImageRequestHandler(cgImage: page, options: [:])
+                            .perform([request])
+                        return (request.results ?? [])
+                            .compactMap { $0.topCandidates(1).first?.string }
+                            .joined(separator: "\n")
+                    }.filter { !$0.isEmpty }.joined(separator: "\n\n")
+                    return text
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.status.stopAnimating()
+                    switch result {
+                    case .success(let recognized):
+                        guard !recognized.trimmingCharacters(
+                            in: .whitespacesAndNewlines).isEmpty else {
+                            self.showProblem(V3L("未能识别到文字，请重新拍照。"))
+                            return
+                        }
+                        do {
+                            try self.binding.commit(recognized)
+                            self.dismiss(animated: true)
+                        } catch {
+                            self.showProblem(error.localizedDescription)
+                        }
+                    case .failure(let error):
+                        self.showProblem(error.localizedDescription)
+                    }
+                }
+            }
+        }
+    }
+
+    private func showProblem(_ message: String) {
+        let alert = UIAlertController(title: V3L("拍照识别未完成"),
+            message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: V3L("重试"), style: .default) {
+            [weak self] _ in self?.launchScanner()
+        })
+        alert.addAction(UIAlertAction(title: V3L("取消"), style: .cancel) {
+            [weak self] _ in self?.dismiss(animated: true)
+        })
         present(alert, animated: true)
     }
 }
