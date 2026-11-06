@@ -72,7 +72,8 @@ enum ImpressV3DeepSeekDOMBridge {
     };
     const candidates = Array.from(document.querySelectorAll(
         'textarea, [contenteditable="true"], [role="textbox"]'
-    )).filter(visible).sort((a, b) =>
+    )).filter(el => (el.tagName === "TEXTAREA" || el.isContentEditable) && visible(el))
+        .sort((a, b) =>
         b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
     const input = candidates[0];
     if (!input) return {ok: false, reason: "input_not_found"};
@@ -124,7 +125,8 @@ enum ImpressV3DeepSeekDOMBridge {
     };
     const editors = Array.from(document.querySelectorAll(
         'textarea, [contenteditable="true"], [role="textbox"]'
-    )).filter(visible).sort((a, b) =>
+    )).filter(el => (el.tagName === "TEXTAREA" || el.isContentEditable) && visible(el))
+        .sort((a, b) =>
         b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
     const input = editors[0];
     if (!input) return {ok: false, reason: "input_not_found"};
