@@ -336,6 +336,17 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
             self?.navigationController?.pushViewController(
                 ImpressAISettingsViewController(), animated: true)
         }
+        let webOCR = UIAction(title: V3L("拍照 OCR 输入网页"),
+            image: UIImage(systemName: "text.viewfinder")) { [weak self] _ in
+            guard let self else { return }
+            guard self.trustedDeepSeekPage() else {
+                self.showBridgeError(V3L("请先打开 DeepSeek 网页。"))
+                return
+            }
+            ImpressSpeechAccessory.presentWebOCR(from: self) { [weak self] text in
+                self?.writeToWeb(text, append: true)
+            }
+        }
         let refresh = UIAction(title: V3L("刷新网页"),
             image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
             self?.webView.reload()
@@ -346,7 +357,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
                 [weak self] _ in self?.copyReviewHandoff()
             }
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"),
-            menu: UIMenu(children: [promptMenu, settings, nativeHistory,
+            menu: UIMenu(children: [promptMenu, webOCR, settings, nativeHistory,
                                     copyFallback, refresh]))
         more.accessibilityLabel = V3L("对话设置与历史")
         navigationItem.rightBarButtonItems = [more, speech, send, prepare]
