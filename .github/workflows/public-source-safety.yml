@@ -21,3 +21,13 @@ jobs:
         run: node .github/scripts/test_deepseek_bridge.js
       - name: November 2026 route and privacy checks (static)
         run: python3 .github/scripts/check_november_features.py
+      - name: Parse changed Swift files only (no build, linking or Pods)
+        run: |
+          swiftc -frontend -parse \
+            aReuImpress-iPhone/Base/AppDelegate.swift \
+            aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechInputUI.swift \
+            aReuImpress-iPhone/VC/SubVCs/ImWebVC/ImWebViewController.swift \
+            aReuImpress-iPhone/Utils/Public/ImAI/ImpressAISettingsViewController.swift \
+            aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3CardComposerViewController.swift \
+            aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3ReviewViewController.swift \
+            aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift
