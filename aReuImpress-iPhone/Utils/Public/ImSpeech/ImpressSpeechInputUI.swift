@@ -163,6 +163,13 @@ enum ImpressSpeechAccessory {
         owner.present(recorder, animated: true)
     }
 
+    static func presentWebOCR(from owner: UIViewController,
+                              onRecognized: @escaping (String) -> Void) {
+        let camera = ImpressOCRCaptureViewController(onRecognized: onRecognized)
+        camera.modalPresentationStyle = .fullScreen
+        owner.present(camera, animated: true)
+    }
+
     static func presentOCR(for field: UIView) {
         guard let binding = ImpressSpeechTextBinding(view: field) else { return }
         var responder: UIResponder? = field
@@ -402,12 +409,20 @@ final class ImpressSpeechPanelViewController: UIViewController {
 @MainActor
 final class ImpressOCRCaptureViewController: UIViewController,
                                             VNDocumentCameraViewControllerDelegate {
-    private let binding: ImpressSpeechTextBinding
+    private let binding: ImpressSpeechTextBinding?
+    private let onRecognized: ((String) -> Void)?
     private var started = false
     private let status = UIActivityIndicatorView(style: .large)
 
     init(binding: ImpressSpeechTextBinding) {
         self.binding = binding
+        self.onRecognized = nil
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    init(onRecognized: @escaping (String) -> Void) {
+        self.binding = nil
+        self.onRecognized = onRecognized
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -489,7 +504,11 @@ final class ImpressOCRCaptureViewController: UIViewController,
                             return
                         }
                         do {
-                            try self.binding.commit(recognized)
+                            if let binding = self.binding {
+                                try binding.commit(recognized)
+                            } else {
+                                self.onRecognized?(recognized)
+                            }
                             self.dismiss(animated: true)
                         } catch {
                             self.showProblem(error.localizedDescription)
@@ -512,5 +531,38 @@ final class ImpressOCRCaptureViewController: UIViewController,
             [weak self] _ in self?.dismiss(animated: true)
         })
         present(alert, animated: true)
+    }
+}
+
+
+// MARK: - App-wide attachment without UIKit method swizzling
+// Observe the system's native editing notifications. Existing bespoke
+// inputAccessoryView implementations are left intact, never overwritten.
+@MainActor
+final class ImpressGlobalTextInputTools: NSObject {
+    static let shared = ImpressGlobalTextInputTools()
+    private var installed = false
+
+    func install() {
+        guard !installed else { return }
+        installed = true
+        NotificationCenter.default.addObserver(self,
+            selector: #selector(editingDidBegin(_:)),
+            name: UITextField.textDidBeginEditingNotification, object: nil)
+        NotificationCenter.default.addObserver(self,
+            selector: #selector(editingDidBegin(_:)),
+            name: UITextView.textDidBeginEditingNotification, object: nil)
+    }
+
+    @objc private func editingDidBegin(_ notification: Notification) {
+        if let field = notification.object as? UITextField,
+           field.isEnabled, field.inputAccessoryView == nil {
+            ImpressSpeechAccessory.install(on: field)
+            field.reloadInputViews()
+        } else if let editor = notification.object as? UITextView,
+                  editor.isEditable, editor.inputAccessoryView == nil {
+            ImpressSpeechAccessory.install(on: editor)
+            editor.reloadInputViews()
+        }
     }
 }
