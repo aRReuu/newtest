@@ -129,6 +129,7 @@ final class ImpressV3CardComposerViewController: UIViewController,
     private let imageButton = UIButton(type: .system)
     private let videoCaptureButton = UIButton(type: .system)
     private var capturedVideoSource: URL?
+    private var activeVideoImportToken = UUID()
     private let imagePreview = UIImageView()
     private let cancelVideoButton = UIButton(type: .system)
     private let removeExistingVideoButton = UIButton(type: .system)
@@ -653,6 +654,7 @@ final class ImpressV3CardComposerViewController: UIViewController,
     }
 
     @objc private func cancelVideoImport() {
+        activeVideoImportToken = UUID()
         videoImporter.cancel()
         removeCapturedVideoSource()
         processingPhoto = false
@@ -668,6 +670,8 @@ final class ImpressV3CardComposerViewController: UIViewController,
             return
         }
         let sourceForSelection = capturedVideoSource
+        let token = UUID()
+        activeVideoImportToken = token
         processingPhoto = true
         saveItem?.isEnabled = false
         cancelVideoButton.isHidden = false
@@ -678,7 +682,7 @@ final class ImpressV3CardComposerViewController: UIViewController,
                 self?.photoStatus.text = String(format: "正在本机压缩视频 · %d%%",
                     Int(max(0, min(100, fraction * 100))))
             }, completion: { [weak self] result in
-                guard let self else {
+                guard let self, self.activeVideoImportToken == token else {
                     if case .success(let stage) = result { stage.discard() }
                     return
                 }
@@ -792,6 +796,7 @@ final class ImpressV3CardComposerViewController: UIViewController,
         super.viewDidDisappear(animated)
         if isBeingDismissed || navigationController?.isBeingDismissed == true {
             imageRequestID = UUID()
+            activeVideoImportToken = UUID()
             videoImporter.cancel()
             removeCapturedVideoSource()
             stagedVideo?.discard()
