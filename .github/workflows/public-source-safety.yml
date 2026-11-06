@@ -17,3 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify no images, icons, private data or Chinese explanatory prose
         run: python3 .github/scripts/check_public_mirror.py
+      - name: DeepSeek React DOM bridge unit checks (offline)
+        run: node .github/scripts/test_deepseek_bridge.js
+      - name: November 2026 route and privacy checks (static)
+        run: python3 .github/scripts/check_november_features.py
