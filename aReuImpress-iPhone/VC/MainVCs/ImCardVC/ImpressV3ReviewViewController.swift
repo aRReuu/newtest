@@ -897,14 +897,16 @@ final class ImpressV3ReviewViewController: UIViewController {
                 if latest.cardType == CardType.image.rawValue {
                     context += "\n" + V3L("这是一张图片卡，本次纯文字对话不包含图片像素。")
                 }
-                let linkedNote = latest.sourceNotePath.flatMap {
-                    try? ImpressBatchSourceKey.decode($0)
-                }
-                let discussion = ImpressAINativeChatViewController(
-                    question: latest.question, answer: answerWasRevealed ? context : nil,
-                    cardID: item.cardID, contentRevision: latest.contentRevision,
-                    repository: repo, linkedNoteIdentity: linkedNote)
-                navigationController?.pushViewController(discussion, animated: true)
+                let prompt = ImpressAIChatPromptSelection.selectedTemplate()?.content
+                    ?? UserDefaults.standard.string(forKey: "kSystemPrompt")
+                let payload = ImpressV3DeepSeekHandoff.makePayload(
+                    question: latest.question,
+                    answer: answerWasRevealed ? context : nil,
+                    userPrompt: prompt)
+                let web = ImWebViewController.forReviewHandoff(text: payload)
+                let navigation = ImNavigationViewController(rootViewController: web)
+                navigation.modalPresentationStyle = .fullScreen
+                self.present(navigation, animated: true)
             } catch { displayFailure(error) }
         }
     }
