@@ -98,7 +98,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>仅当你主动选择拍照时使用相机；Chat 中选择的照片仅供本地预览，不会自动上传。</string>
+	<string>仅在你主动拍照、扫描文字或录制卡片视频时访问相机；OCR 和视频压缩在设备端执行，不会自动上传。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Impress 仅在你点击麦克风后录音，使用 Apple 端侧识别将语音插入当前文本框。音频不上传或保存。</string>
 	<key>NSDocumentsFolderUsageDescription</key>
