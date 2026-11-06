@@ -109,7 +109,7 @@ final class ImpressAISettingsViewController: UITableViewController {
                 content.image = UIImage(systemName: "lock.shield")
             } else if indexPath.row == 1 {
                 content.text = V3L("AI 讨论")
-                content.secondaryText = V3L("使用对话模型进行原生多轮讨论")
+                content.secondaryText = V3L("DeepSeek 网页对话；本机原生历史保留")
                 content.image = UIImage(systemName: "bubble.left.and.bubble.right")
             } else {
                 content.text = V3L("默认对话提示词")
@@ -148,8 +148,10 @@ final class ImpressAISettingsViewController: UITableViewController {
                 ImpressAIModelChooser(task: tasks[indexPath.row]), animated: true)
         default:
             if indexPath.row == 1 {
-                navigationController?.pushViewController(
-                    ImpressAINativeChatViewController(), animated: true)
+                let web = ImWebViewController.forDirectBrowse()
+                let navigation = ImNavigationViewController(rootViewController: web)
+                navigation.modalPresentationStyle = .fullScreen
+                present(navigation, animated: true)
                 return
             }
             if indexPath.row == 2 {
