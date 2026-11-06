@@ -9,8 +9,8 @@ import UIKit
 import WebKit
 import Combine
 
-/// Pure preparation: no network request, JavaScript injection or automatic send.
-/// The user's customized local prompt takes precedence over the fallback.
+/// Preparing a handoff does not send it to DeepSeek. The user explicitly
+/// inserts the material into the React editor and separately triggers Send.
 enum ImpressV3DeepSeekHandoff {
     static func makePayload(question: String,
                             answer: String?,
@@ -34,6 +34,109 @@ enum ImpressV3DeepSeekHandoff {
     }
 }
 
+
+/// DeepSeek's editor is a React-controlled page, not a URL-parameter API.
+/// All DOM operations happen in the page's JavaScript world, following a
+/// deliberate native action. A successful write never implies a network send.
+enum ImpressV3DeepSeekDOMBridge {
+    static let insert = #"""
+    if (location.protocol !== "https:" || location.hostname !== "chat.deepseek.com") {
+        return {ok: false, reason: "untrusted_origin"};
+    }
+    const text = String(payload ?? "");
+    if (!text.trim()) return {ok: false, reason: "empty_payload"};
+    const visible = el => {
+        const r = el.getBoundingClientRect();
+        const css = getComputedStyle(el);
+        return r.width > 5 && r.height > 5 && css.display !== "none" &&
+            css.visibility !== "hidden" && !el.closest('[aria-hidden="true"]');
+    };
+    const candidates = Array.from(document.querySelectorAll(
+        'textarea, [contenteditable="true"], [role="textbox"]'
+    )).filter(visible).sort((a, b) =>
+        b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
+    const input = candidates[0];
+    if (!input) return {ok: false, reason: "input_not_found"};
+    const isTextArea = input instanceof HTMLTextAreaElement ||
+        input instanceof HTMLInputElement;
+    const previous = isTextArea ? input.value : (input.innerText || input.textContent || "");
+    const next = append === true && previous.trim()
+        ? previous.trimEnd() + "\n" + text : text;
+    input.focus();
+    let nativeEdit = false;
+    if (isTextArea) {
+        const prototype = input instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+        if (!setter) return {ok: false, reason: "native_setter_missing"};
+        // Calling the prototype setter rather than input.value = ... avoids
+        // React's value tracker swallowing the subsequent input event.
+        setter.call(input, next);
+        input.dispatchEvent(new InputEvent("input", {
+            bubbles: true, inputType: "insertText", data: text
+        }));
+        input.dispatchEvent(new Event("change", {bubbles: true}));
+        nativeEdit = true;
+    } else {
+        // Rich contenteditables (Quill/ProseMirror/React) must receive an
+        // editing transaction; setting innerHTML alone bypasses React state.
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(input);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        nativeEdit = !!document.execCommand?.("insertText", false, next);
+        if (!nativeEdit) return {ok: false, reason: "editor_rejected_input"};
+    }
+    const actual = isTextArea ? input.value : (input.innerText || input.textContent || "");
+    return {ok: nativeEdit && actual.trim() === next.trim(),
+        reason: actual.trim() === next.trim() ? "inserted" : "input_mismatch"};
+    """#
+
+    static let send = #"""
+    if (location.protocol !== "https:" || location.hostname !== "chat.deepseek.com") {
+        return {ok: false, reason: "untrusted_origin"};
+    }
+    const visible = el => {
+        const r = el.getBoundingClientRect();
+        const css = getComputedStyle(el);
+        return r.width > 5 && r.height > 5 && css.display !== "none" &&
+            css.visibility !== "hidden";
+    };
+    const editors = Array.from(document.querySelectorAll(
+        'textarea, [contenteditable="true"], [role="textbox"]'
+    )).filter(visible).sort((a, b) =>
+        b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
+    const input = editors[0];
+    if (!input) return {ok: false, reason: "input_not_found"};
+    const value = input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement
+        ? input.value : (input.innerText || input.textContent || "");
+    if (!value.trim()) return {ok: false, reason: "empty_message"};
+    const scopes = [];
+    let parent = input;
+    for (let n = 0; parent && n < 7; n++, parent = parent.parentElement) {
+        scopes.push(parent);
+    }
+    let sendButton = null;
+    for (const scope of scopes) {
+        const controls = Array.from(scope.querySelectorAll('button, [role="button"]'))
+            .filter(visible);
+        sendButton = controls.find(el =>
+            /(^|[\s_-])(send|submit)([\s_-]|$)|发送|提交/i.test(
+                [el.getAttribute("aria-label"), el.getAttribute("title"),
+                 el.getAttribute("data-testid")].filter(Boolean).join(" ")));
+        if (!sendButton) sendButton = controls.find(el =>
+            el.matches('button[type="submit"]'));
+        if (sendButton) break;
+    }
+    if (!sendButton) return {ok: false, reason: "send_control_not_found"};
+    if (sendButton.disabled || sendButton.getAttribute("aria-disabled") === "true") {
+        return {ok: false, reason: "send_disabled"};
+    }
+    sendButton.click();
+    return {ok: true, reason: "send_clicked"};
+    """#
+}
 
 /// WKWebView控制器单例
 /// 用于显示DeepSeek聊天页面，并提供生成复习卡片的功能
@@ -168,41 +271,146 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
         let close = UIBarButtonItem(image: UIImage(systemName: "xmark"),
                                     style: .plain, target: self,
                                     action: #selector(closeWebView))
-        if let handoff = reviewHandoffText {
-            if !handoff.isEmpty {
-                let copy = UIBarButtonItem(title: "复制问题", style: .plain,
-                                           target: self, action: #selector(copyReviewHandoff))
-                copy.accessibilityLabel = "复制本题到剪贴板"
-                copyHandoffButton = copy
-                navigationItem.rightBarButtonItems = [copy]
-            } else {
-                navigationItem.rightBarButtonItems = [refresh]
-            }
-        } else {
-            navigationItem.leftBarButtonItems = [close, refresh]
-        }
+        navigationItem.leftBarButtonItems = [close]
+        navigationItem.rightBarButtonItems = [refresh]
         updatePromptMenu()
     }
 
     private func updatePromptMenu() {
-        let templates = ImpressV3PromptLibrary.load()
-        let actions = templates.map { template in
-            UIAction(title: template.title, image: UIImage(systemName: "doc.on.doc")) { _ in
-                // One direct user action: copy only this explicit local template.
-                // No script injection, hidden clipboard read or network send.
-                UIPasteboard.general.string = template.content
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "提示词已复制。请自行粘贴并确认发送。")
+        // One compact web toolbar; no duplicated "current material" header.
+        let prepare = UIBarButtonItem(image: UIImage(systemName: "text.badge.plus"),
+            style: .plain, target: self, action: #selector(importPreparedMaterial))
+        prepare.accessibilityLabel = V3L("将本次材料填入 DeepSeek 输入框")
+        prepare.accessibilityIdentifier = "impress.deepseek.insert-material"
+        prepare.isEnabled = reviewHandoffText?.isEmpty == false
+
+        let send = UIBarButtonItem(image: UIImage(systemName: "arrow.up.circle"),
+            style: .plain, target: self, action: #selector(sendWebMessage))
+        send.accessibilityLabel = V3L("发送网页输入框中的消息")
+        send.accessibilityIdentifier = "impress.deepseek.send"
+
+        let speech = UIBarButtonItem(image: UIImage(systemName: "mic"),
+            style: .plain, target: self, action: #selector(startWebSpeech))
+        speech.accessibilityLabel = V3L("语音转文字并填入网页输入框")
+        speech.accessibilityIdentifier = "impress.deepseek.speech"
+
+        let promptActions = ImpressV3PromptLibrary.load().map { template in
+            UIAction(title: template.title,
+                     image: UIImage(systemName: "text.quote")) { [weak self] _ in
+                self?.writeToWeb(template.content, append: true)
             }
         }
-        let menu = UIMenu(title: "复制提示词", children: actions)
-        let item = UIBarButtonItem(image: UIImage(systemName: "text.quote"),
-                                   menu: menu)
-        item.accessibilityLabel = "从提示词库复制"
-        var others = navigationItem.rightBarButtonItems ?? []
-        others.removeAll { $0.accessibilityLabel == "从提示词库复制" }
-        others.append(item)
-        navigationItem.rightBarButtonItems = others
+        let promptMenu = UIMenu(title: V3L("插入提示词"), children:
+            promptActions.isEmpty ? [
+                UIAction(title: V3L("尚无自定义提示词"), attributes: .disabled,
+                         handler: { _ in })
+            ] : promptActions)
+        let nativeHistory = UIAction(title: V3L("本机原生聊天历史"),
+            image: UIImage(systemName: "clock.arrow.circlepath")) { [weak self] _ in
+            self?.navigationController?.pushViewController(
+                ImpressAINativeChatViewController(), animated: true)
+        }
+        let settings = UIAction(title: V3L("对话设置"),
+            image: UIImage(systemName: "gearshape")) { [weak self] _ in
+            self?.navigationController?.pushViewController(
+                ImpressAISettingsViewController(), animated: true)
+        }
+        let refresh = UIAction(title: V3L("刷新网页"),
+            image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
+            self?.webView.reload()
+        }
+        let copyFallback = UIAction(title: V3L("复制本次材料（备用）"),
+            image: UIImage(systemName: "doc.on.doc"),
+            attributes: reviewHandoffText?.isEmpty == false ? [] : [.disabled]) {
+                [weak self] _ in self?.copyReviewHandoff()
+            }
+        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"),
+            menu: UIMenu(children: [promptMenu, settings, nativeHistory,
+                                    copyFallback, refresh]))
+        more.accessibilityLabel = V3L("对话设置与历史")
+        navigationItem.rightBarButtonItems = [more, speech, send, prepare]
+    }
+
+    private func showBridgeError(_ reason: String, fallback: String? = nil) {
+        let alert = UIAlertController(title: V3L("网页交互未完成"),
+            message: reason, preferredStyle: .alert)
+        if let fallback, !fallback.isEmpty {
+            alert.addAction(UIAlertAction(title: V3L("复制并手动粘贴"),
+                style: .default) { _ in UIPasteboard.general.string = fallback })
+        }
+        alert.addAction(UIAlertAction(title: V3L("确定"), style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func trustedDeepSeekPage() -> Bool {
+        guard let url = webView.url else { return false }
+        return url.scheme == "https" && url.host == "chat.deepseek.com"
+    }
+
+    private func writeToWeb(_ text: String, append: Bool) {
+        guard trustedDeepSeekPage() else {
+            showBridgeError(V3L("请先打开并登录 DeepSeek 官方网页。"), fallback: text)
+            return
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let value = try await webView.callAsyncJavaScript(
+                    ImpressV3DeepSeekDOMBridge.insert,
+                    arguments: ["payload": text, "append": append],
+                    in: nil, contentWorld: .page)
+                guard let result = value as? [String: Any],
+                      result["ok"] as? Bool == true else {
+                    showBridgeError(V3L("网页编辑器结构可能已更新，未能确认 React 输入状态。"),
+                                    fallback: text)
+                    return
+                }
+                navigationItem.prompt = V3L("已填入网页输入框，尚未发送")
+                UIAccessibility.post(notification: .announcement,
+                    argument: V3L("文字已经填入网页输入框"))
+            } catch {
+                showBridgeError(error.localizedDescription, fallback: text)
+            }
+        }
+    }
+
+    @objc private func importPreparedMaterial() {
+        guard let value = reviewHandoffText, !value.isEmpty else { return }
+        writeToWeb(value, append: true)
+    }
+
+    @objc private func startWebSpeech() {
+        guard trustedDeepSeekPage() else {
+            showBridgeError(V3L("请先打开 DeepSeek 网页。"))
+            return
+        }
+        ImpressSpeechAccessory.presentWeb(from: self) { [weak self] dictated in
+            self?.writeToWeb(dictated, append: true)
+        }
+    }
+
+    @objc private func sendWebMessage() {
+        guard trustedDeepSeekPage() else {
+            showBridgeError(V3L("当前不是 DeepSeek 官方网页，已阻止发送。"))
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let value = try await webView.callAsyncJavaScript(
+                    ImpressV3DeepSeekDOMBridge.send,
+                    arguments: [:], in: nil, contentWorld: .page)
+                guard let result = value as? [String: Any],
+                      result["ok"] as? Bool == true else {
+                    showBridgeError(V3L("找不到可确认的发送按钮；请在网页中手动发送。"))
+                    return
+                }
+                navigationItem.prompt = nil
+            } catch {
+                showBridgeError(error.localizedDescription)
+            }
+        }
     }
 
     @objc private func copyReviewHandoff() {
