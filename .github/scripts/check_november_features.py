@@ -36,6 +36,11 @@ assert 'navigation.modalPresentationStyle = .fullScreen' in settings
 assert 'ImWebViewController.forReviewHandoff(text: payload)' in cards
 assert 'ImWebViewController.forReviewHandoff(text: payload)' in notes
 assert 'ImWebViewController.forDirectBrowse()' in settings
+assert 'linkedNativeDiscussion: ImpressAINativeChatViewController?' in web
+assert 'nativeDiscussion: native' in cards
+assert 'contentRevision: latest.contentRevision' in cards
+assert 'nativeDiscussion: native' in notes
+assert 'sourceVersion: latest.digest' in notes
 assert 'ImpressSpeechAccessory.presentOCR(for: questionView)' in composer
 assert 'ImpressSpeechAccessory.presentWeb(from: self)' in web
 assert 'ImpressSpeechAccessory.presentWebOCR(from: self)' in web
