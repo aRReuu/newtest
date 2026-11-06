@@ -173,6 +173,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
     private var initialCenter: CGPoint = .zero
     private var cancellables = Set<AnyCancellable>()
     private var reviewHandoffText: String?
+    private var linkedNativeDiscussion: ImpressAINativeChatViewController?
     private var copyHandoffButton: UIBarButtonItem?
     private let viewModel = ImCardViewModel() // 将viewModel作为属性保留
 
@@ -183,9 +184,13 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
     /// Every V3 learning handoff gets a fresh web controller. Legacy singleton
     /// paths remain available until the old business routes are retired.
-    static func forReviewHandoff(text: String) -> ImWebViewController {
+    static func forReviewHandoff(
+        text: String,
+        nativeDiscussion: ImpressAINativeChatViewController? = nil
+    ) -> ImWebViewController {
         let controller = ImWebViewController()
         controller.reviewHandoffText = text
+        controller.linkedNativeDiscussion = nativeDiscussion
         return controller
     }
 
@@ -326,10 +331,16 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
                 UIAction(title: V3L("尚无自定义提示词"), attributes: .disabled,
                          handler: { _ in })
             ] : promptActions)
-        let nativeHistory = UIAction(title: V3L("本机原生聊天历史"),
+        let nativeHistory = UIAction(
+            title: V3L(linkedNativeDiscussion == nil
+                ? "本机原生聊天历史" : "原卡／笔记核查与修订（本机）"),
             image: UIImage(systemName: "clock.arrow.circlepath")) { [weak self] _ in
-            self?.navigationController?.pushViewController(
-                ImpressAINativeChatViewController(), animated: true)
+            guard let self else { return }
+            // Keep the exact source identity/revision and original approval
+            // gates; the browser never receives Vault write capability.
+            let native = self.linkedNativeDiscussion
+                ?? ImpressAINativeChatViewController()
+            self.navigationController?.pushViewController(native, animated: true)
         }
         let settings = UIAction(title: V3L("对话设置"),
             image: UIImage(systemName: "gearshape")) { [weak self] _ in
