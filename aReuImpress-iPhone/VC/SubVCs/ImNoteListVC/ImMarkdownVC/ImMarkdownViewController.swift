@@ -1607,10 +1607,21 @@ final class ImVaultDocumentController: UIViewController {
             let payload = ImpressV3DeepSeekHandoff.makeNotePayload(
                 title: latest.identity.relativePath,
                 markdown: markdown, userPrompt: prompt)
-            let web = ImWebViewController.forReviewHandoff(text: payload)
-            let navigation = ImNavigationViewController(rootViewController: web)
-            navigation.modalPresentationStyle = .fullScreen
-            self.present(navigation, animated: true)
+            do {
+                let repository = try ImpressV3ReviewEnvironment.repository()
+                let key = "note:" + (try ImpressBatchSourceKey.encode(latest.identity))
+                let native = ImpressAINativeChatViewController(
+                    question: V3L("来源笔记：") + latest.identity.relativePath,
+                    answer: markdown, repository: repository, sourceKey: key,
+                    sourceVersion: latest.digest, noteIdentity: latest.identity)
+                let web = ImWebViewController.forReviewHandoff(
+                    text: payload, nativeDiscussion: native)
+                let navigation = ImNavigationViewController(rootViewController: web)
+                navigation.modalPresentationStyle = .fullScreen
+                self.present(navigation, animated: true)
+            } catch {
+                self.showVaultError(V3L("无法打开笔记讨论"), error: error)
+            }
         }
     }
 
