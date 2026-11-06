@@ -27,11 +27,12 @@ for symbol in (
     'impress.deepseek.insert-material',
     'impress.deepseek.send',
     'ImpressSpeechAccessory.presentWeb(',
-    'modalPresentationStyle = .fullScreen',
 ):
     assert symbol in web, f"Web route lost {symbol}"
 
 assert 'navigation.modalPresentationStyle = .fullScreen' in cards
+assert 'navigation.modalPresentationStyle = .fullScreen' in notes
+assert 'navigation.modalPresentationStyle = .fullScreen' in settings
 assert 'ImWebViewController.forReviewHandoff(text: payload)' in cards
 assert 'ImWebViewController.forReviewHandoff(text: payload)' in notes
 assert 'ImWebViewController.forDirectBrowse()' in settings
