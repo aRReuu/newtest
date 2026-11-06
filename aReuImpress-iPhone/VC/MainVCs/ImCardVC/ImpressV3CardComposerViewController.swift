@@ -103,7 +103,8 @@ struct ImpressV3CardDraft {
 }
 
 @MainActor
-final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewControllerDelegate {
+final class ImpressV3CardComposerViewController: UIViewController,
+    PHPickerViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     var onSave: ((WCDBV3CardInput) async throws -> Void)?
     /// Set by the data/backup integration owner only after media CAS is implemented.
     var onSaveVideo: ((WCDBV3CardInput, ImpressCardVideoAVFoundationExporter.Staged) async throws -> Void)?
@@ -126,6 +127,8 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
     private let optionList = UIStackView()
     private let addOptionButton = UIButton(type: .system)
     private let imageButton = UIButton(type: .system)
+    private let videoCaptureButton = UIButton(type: .system)
+    private var capturedVideoSource: URL?
     private let imagePreview = UIImageView()
     private let cancelVideoButton = UIButton(type: .system)
     private let removeExistingVideoButton = UIButton(type: .system)
@@ -244,6 +247,13 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
         questionView.accessibilityLabel = V3L("问题")
         ImpressSpeechAccessory.install(on: questionView)
         stack.addArrangedSubview(makeLabeledGroup(V3L("问题"), child: questionView))
+        let cameraOCR = UIButton(type: .system)
+        ImpressV3Appearance.styleQuietButton(cameraOCR, title: V3L("拍照输入"),
+                                              symbol: "text.viewfinder")
+        cameraOCR.accessibilityIdentifier = "impress.composer.ocr-camera"
+        cameraOCR.addTarget(self, action: #selector(captureQuestionText),
+                            for: .touchUpInside)
+        stack.addArrangedSubview(cameraOCR)
 
         configureQA()
         configureChoices()
@@ -322,6 +332,10 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
         renderOptionRows()
     }
 
+    @objc private func captureQuestionText() {
+        ImpressSpeechAccessory.presentOCR(for: questionView)
+    }
+
     private func configurePhoto() {
         photoSection.axis = .vertical
         photoSection.spacing = ImpressV3Appearance.Metrics.sectionSpacing
@@ -330,6 +344,12 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
             imageButton, title: V3L("从相册选择图片或视频"), symbol: "photo.on.rectangle")
         imageButton.addTarget(self, action: #selector(selectPhoto), for: .touchUpInside)
         photoSection.addArrangedSubview(imageButton)
+        ImpressV3Appearance.styleQuietButton(videoCaptureButton,
+            title: V3L("拍摄视频"), symbol: "video.badge.plus")
+        videoCaptureButton.accessibilityIdentifier = "impress.card.video.camera"
+        videoCaptureButton.addTarget(self, action: #selector(captureVideo),
+                                     for: .touchUpInside)
+        photoSection.addArrangedSubview(videoCaptureButton)
         imagePreview.contentMode = .scaleAspectFit
         imagePreview.backgroundColor = ImpressV3Appearance.surface
         imagePreview.layer.cornerRadius = ImpressV3Appearance.Radius.field
@@ -574,6 +594,53 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
         return expectedEditingContentRevision + 1
     }
 
+    @objc private func captureVideo() {
+        guard !processingPhoto, !saving else { return }
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showProblem(V3L("此设备不支持相机视频录制。"))
+            return
+        }
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.mediaTypes = [UTType.movie.identifier]
+        picker.videoMaximumDuration = 60
+        picker.videoQuality = .typeMedium
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController,
+                               didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        picker.dismiss(animated: true) { [weak self] in
+            guard let self, let source = info[.mediaURL] as? URL else { return }
+            do {
+                let copy = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("impress-captured-\(UUID().uuidString).mov")
+                try FileManager.default.copyItem(at: source, to: copy)
+                guard let provider = NSItemProvider(contentsOf: copy) else {
+                    try? FileManager.default.removeItem(at: copy)
+                    throw ImpressCardVideoImportCoordinator.Failure.unsupportedVideo
+                }
+                self.removeCapturedVideoSource()
+                self.capturedVideoSource = copy
+                self.beginVideoSelection(provider)
+            } catch {
+                self.showProblem(error.localizedDescription)
+            }
+        }
+    }
+
+    private func removeCapturedVideoSource() {
+        if let url = capturedVideoSource {
+            try? FileManager.default.removeItem(at: url)
+            capturedVideoSource = nil
+        }
+    }
+
     @objc private func selectPhoto() {
         guard !processingPhoto, !saving else { return }
         var cfg = PHPickerConfiguration()
@@ -587,6 +654,7 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
 
     @objc private func cancelVideoImport() {
         videoImporter.cancel()
+        removeCapturedVideoSource()
         processingPhoto = false
         saveItem?.isEnabled = !saving
         cancelVideoButton.isHidden = true
@@ -595,6 +663,7 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
 
     private func beginVideoSelection(_ provider: NSItemProvider) {
         guard let targetVideoRevision else {
+            removeCapturedVideoSource()
             showProblem(V3L("无法确定卡片内容版本，请重新打开编辑器。"))
             return
         }
@@ -613,6 +682,7 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
                     return
                 }
                 self.processingPhoto = false
+                self.removeCapturedVideoSource()
                 self.saveItem?.isEnabled = !self.saving
                 self.cancelVideoButton.isHidden = true
                 switch result {
@@ -720,6 +790,7 @@ final class ImpressV3CardComposerViewController: UIViewController, PHPickerViewC
         if isBeingDismissed || navigationController?.isBeingDismissed == true {
             imageRequestID = UUID()
             videoImporter.cancel()
+            removeCapturedVideoSource()
             stagedVideo?.discard()
             stagedVideo = nil
         }
