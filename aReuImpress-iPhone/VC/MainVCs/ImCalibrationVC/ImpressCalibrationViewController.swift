@@ -192,33 +192,16 @@ final class ImpressCalibrationViewController: UITableViewController {
     private func refreshChart() async {
         do {
             let records = try await store.trendRecords()
-            let cal = Calendar.current
-            let now = Date()
-            let currentID = CalibrationDayCheckIn.dayID(for: now, calendar: cal)
-            if period.selectedSegmentIndex == 2 {
-                let year = cal.component(.year, from: now)
-                let months = try CalibrationScoreCore.monthlyTrend(records, year: year)
-                let values = months.map(\.averageDailyScore)
-                var averages = [Double?]()
-                for index in values.indices {
-                    let recent = values[max(0, index-2)...index].compactMap { $0 }
-                    averages.append(values[index] == nil ? nil :
-                        recent.reduce(0, +) / Double(recent.count))
-                }
-                chart.update(values: values, smooth: averages, title: V3L("月均每日得分"),
-                             labels: months.map { String($0.month) + V3L("月") })
-            } else {
-                let length = period.selectedSegmentIndex == 0 ? 6 : 29
-                let start = cal.date(byAdding: .day, value: -length, to: now)!
-                let firstID = CalibrationDayCheckIn.dayID(for: start, calendar: cal)
-                let days = try CalibrationScoreCore.dailyTrend(
-                    records, from: firstID, through: currentID)
-                chart.update(values: days.map { $0.netScore.map(Double.init) },
-                             smooth: days.map(\.trailingSevenDayMean),
-                             title: period.selectedSegmentIndex == 0 ?
-                                V3L("每日净分与7日均线") : V3L("近30日净分与7日均线"),
-                             labels: days.map { String($0.dayID.suffix(5)) })
+            let selected: CalibrationWidgetPeriod
+            switch period.selectedSegmentIndex {
+            case 1: selected = .month
+            case 2: selected = .year
+            default: selected = .week
             }
+            let plot = try ImpressCalibrationChartProjector.project(
+                records: records, period: selected)
+            chart.update(values: plot.values, smooth: plot.smooth,
+                         title: plot.title, labels: plot.labels)
         } catch {
             showError(error)
         }
@@ -444,9 +427,56 @@ final class ImpressCalibrationViewController: UITableViewController {
     }
 }
 
+/// Shared plot projection for the full Calibration screen and Flashcards
+/// drawer. All numerical results come from the existing authoritative core.
+struct ImpressCalibrationChartData {
+    let values: [Double?]
+    let smooth: [Double?]
+    let labels: [String]
+    let title: String
+}
+
+@MainActor
+enum ImpressCalibrationChartProjector {
+    static func project(records: [CalibrationDailyRecord],
+                        period: CalibrationWidgetPeriod,
+                        now: Date = Date(),
+                        calendar: Calendar = .current) throws -> ImpressCalibrationChartData {
+        if period == .year {
+            let year = calendar.component(.year, from: now)
+            let months = try CalibrationScoreCore.monthlyTrend(records, year: year)
+            let values = months.map(\.averageDailyScore)
+            var averages: [Double?] = []
+            for index in values.indices {
+                let recent = values[max(0, index - 2)...index].compactMap { $0 }
+                averages.append(values[index] == nil ? nil :
+                                recent.reduce(0, +) / Double(recent.count))
+            }
+            return ImpressCalibrationChartData(
+                values: values, smooth: averages,
+                labels: months.map { String($0.month) + V3L("月") },
+                title: V3L("月均每日得分"))
+        }
+
+        let length = period == .week ? 6 : 29
+        guard let start = calendar.date(byAdding: .day, value: -length, to: now)
+        else { throw CalibrationScoreError.invalidRange }
+        let firstID = CalibrationDayCheckIn.dayID(for: start, calendar: calendar)
+        let currentID = CalibrationDayCheckIn.dayID(for: now, calendar: calendar)
+        let days = try CalibrationScoreCore.dailyTrend(
+            records, from: firstID, through: currentID)
+        return ImpressCalibrationChartData(
+            values: days.map { $0.netScore.map(Double.init) },
+            smooth: days.map(\.trailingSevenDayMean),
+            labels: days.map { String($0.dayID.suffix(5)) },
+            title: period == .week ? V3L("每日净分与7日均线") :
+                                     V3L("近30日净分与7日均线"))
+    }
+}
+
 /// Small native chart: calendar gaps are real gaps, and the 7-day mean never
 /// silently treats missing entries as failures. Semantic UIColors adapt to theme.
-private final class ImpressCalibrationTrendChart: UIView {
+final class ImpressCalibrationTrendChart: UIView {
     private var values: [Double?] = []
     private var smooth: [Double?] = []
     private var descriptionText = V3L("还没有校准记录")
