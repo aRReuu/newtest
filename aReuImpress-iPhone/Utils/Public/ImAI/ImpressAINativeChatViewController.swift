@@ -3548,7 +3548,7 @@ final class ImpressDuplexApprovalController: UIViewController {
         ].compactMap { $0 }.joined(separator: "\n")
         let consent = UIAlertController(title: V3L("确认这两个目标的所选修改？"),
             message: targets + "\n\n" +
-                V3L("来源冲突时停止覆盖；可能部分成功。正式 Vault 写入仍锁定，只有独立 Debug QA 副本获授权后能实际修改文件。"),
+                V3L("只写入明确选择并已授权的 Obsidian Markdown 与原卡；来源冲突时停止覆盖。笔记须有完整差异预览、源文件版本校验、写前恢复副本及写后回读。两个目标分别保存回执，可能部分成功。"),
             preferredStyle: .alert)
         consent.addAction(UIAlertAction(title: V3L("取消"), style: .cancel) {
             [weak self] _ in
@@ -3602,9 +3602,9 @@ final class ImpressDuplexApprovalController: UIViewController {
                     }
                 }
                 #if DEBUG
-                // F02: test the actual production deny-write guard while the
-                // source is an authorized disposable fixture. Card CAS remains
-                // independently permitted after this note refusal.
+                // F02: explicit Debug-only fault injection refuses an
+                // authorized disposable fixture's note write. Card CAS must
+                // remain independently permitted after that refusal.
                 let faultDenyQACopy = qaAuthorized &&
                     ImpressV11UITestFixture.enabled &&
                     id.vaultID == ImpressV11UITestFixture.vaultID &&
@@ -4054,7 +4054,7 @@ final class ImpressDuplexApprovalController: UIViewController {
                 }
             }
             // Do not persist an undo intent when no authorized source
-            // target is available. Production Vault remains permanently gated.
+            // target is available. No source change is authorized by a stale proposal.
             guard ImVaultGuardedWrite.productionWriteEnabled || qaCopy else {
                 throw ImVaultSyncFailure.writesLocked
             }

@@ -19,6 +19,9 @@ actor ImpressV3BackupCoordinator {
     static let shared = ImpressV3BackupCoordinator()
 
     static let bookmarkKey = "ImpressV3BackupCloudFolderBookmark"
+    /// One visible cloud archive regardless of how many local recovery
+    /// snapshots are created. Never append timestamps or UUIDs to this name.
+    static let cloudArchiveFilename = "ImpressV3-latest.zip"
     static let dirtyKey = "ImpressV3BackupNeedsSnapshot"
     static let localDateKey = "ImpressV3BackupLocalDate"
     static let cloudDateKey = "ImpressV3BackupCloudCopiedDate"
@@ -453,7 +456,7 @@ actor ImpressV3BackupCoordinator {
         }
         defer { folder.stopAccessingSecurityScopedResource() }
 
-        let target = folder.appendingPathComponent("ImpressV3-latest.zip")
+        let target = folder.appendingPathComponent(Self.cloudArchiveFilename)
         let stage = folder.appendingPathComponent(
             ".ImpressV3-replacement-" + UUID().uuidString + ".zip")
         let fm = FileManager.default

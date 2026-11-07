@@ -341,11 +341,11 @@ extension ImMarkdownViewController
 
     @objc private func saveButtonTapped()
     {
-        // P0-0: never serialize the rendered UITextView back to source Markdown.
-        // Rich text is not a lossless Obsidian AST. The original vault stays
-        // read-only until the guarded P0-3 write coordinator is accepted.
+        // The retired UITextView is NOT a lossless Obsidian Markdown editor.
+        // Keep this legacy shortcut disabled; the modern Vault document
+        // editor alone owns the verified source-draft/diff/consent pipeline.
         ImAlertController.warningAlert(
-            "Obsidian 源文件目前为只读。请使用独立认知记录；双向写回必须经过版本比对和确认。")
+            "旧版笔记页面不能直接覆盖 Obsidian。请从「笔记」打开已授权 Vault 中的 Markdown，编辑草稿、查看完整差异后明确确认写回。")
     }
 
 
@@ -835,7 +835,7 @@ final class ImVaultDocumentController: UIViewController {
         let draft = UIBarButtonItem(
             image: UIImage(systemName: "square.and.pencil"), style: .plain,
             target: self, action: #selector(editDraft))
-        draft.accessibilityLabel = V3L("编辑独立草稿")
+        draft.accessibilityLabel = V3L("编辑笔记（先预览差异）")
         draft.accessibilityIdentifier = "impress.notes.draft"
         let source = UIBarButtonItem(
             image: UIImage(systemName: "chevron.left.forwardslash.chevron.right"), style: .plain,
@@ -859,7 +859,7 @@ final class ImVaultDocumentController: UIViewController {
             style: .plain, target: nil, action: nil)
         more.accessibilityLabel = V3L("更多笔记操作")
         more.menu = UIMenu(children: [
-            UIAction(title: V3L("编辑独立草稿"),
+            UIAction(title: V3L("编辑笔记（先预览差异）"),
                 image: UIImage(systemName: "square.and.pencil")) { [weak self] _ in self?.editDraft() },
             UIAction(title: V3L("查看 Markdown 源码"),
                 image: UIImage(systemName: "chevron.left.forwardslash.chevron.right")) {
@@ -2154,7 +2154,7 @@ final class ImVaultDraftEditorController: UIViewController, UITextViewDelegate {
         title = V3L("编辑私有草稿")
         view.backgroundColor = ImpressV3Appearance.page
         let notice = UILabel()
-        notice.text = V3L("只保存在 Impress · 不直接修改 Obsidian")
+        notice.text = V3L("保存草稿不修改原件；查看完整差异并再次确认后才能写回 Obsidian")
         notice.textColor = ImpressV3Appearance.secondaryText
         notice.textAlignment = .center
         notice.font = ImpressV3Appearance.Typography.footnote
@@ -2379,8 +2379,8 @@ final class ImVaultDiffController: UIViewController {
         ])
         let save = UIBarButtonItem(title: "确认写回", style: .plain,
                                    target: self, action: #selector(confirmWrite))
-        // Production stays read-only. Debug QA can only enable this action
-        // when the authorized folder is the explicitly named disposable copy.
+        // A complete diff is required even after the owner enables writing.
+        // Debug QA's historical isolated-test fallback remains a separate gate.
         save.isEnabled = canApprove && ImVaultGuardedWrite.productionWriteEnabled
         navigationItem.rightBarButtonItem = save
         #if DEBUG
@@ -2418,7 +2418,7 @@ final class ImVaultDiffController: UIViewController {
                                      V3L("确认修改 Obsidian 源文件？"),
             message: targetContext + (qaCopyRequested
                 ? V3L("仅操作「文件」中名称为 Impress-Write-Test-Vault 的独立副本。正式 Vault 不可写入。将重新核对原文 SHA-256，保存恢复副本后再尝试写入；请先自行复制重要笔记。")
-                : V3L("将重新验证源文件 SHA-256，并先保存私有恢复副本。如果出现版本冲突会拒绝覆盖。")),
+                : V3L("只修改本次显示的已授权 Markdown 文件；将再次验证源文件 SHA-256，保存不可变的批准快照和私有恢复副本，写后回读校验。出现版本冲突或验证失败不会自动覆盖其他文件。")),
             preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: V3L("取消"), style: .cancel))
         alert.addAction(UIAlertAction(title: qaCopyRequested ? V3L("确认测试副本写回") :

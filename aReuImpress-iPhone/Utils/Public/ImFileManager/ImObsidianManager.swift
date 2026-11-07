@@ -457,8 +457,8 @@ enum ImVaultSyncFailure: LocalizedError {
         case .conflict: return "Obsidian 已更新源文件，Impress 草稿保留，禁止自动覆盖。"
         case .previewTruncated: return "Diff 未完整显示，禁止提交。"
         case .approvalMissing: return "未确认本次修改，禁止提交。"
-        case .writesLocked: return "真实 Vault 写回尚未通过设备安全 Gate；草稿已保留。"
-        case .deviceTestVaultRequired: return "只允许在 Debug QA 中操作通过「文件」选定、名称为 Impress-Write-Test-Vault 的独立测试副本。真实 Vault 保持只读；草稿已保留。"
+        case .writesLocked: return "本次 Obsidian 写回被安全 Gate 拒绝，草稿已保留；请检查授权与确认状态。"
+        case .deviceTestVaultRequired: return "仅 Debug QA 测试流程允许操作用户明确选择的 Impress-Write-Test-Vault 副本；草稿已保留。"
         case .verificationFailed: return "备份或写后回读验证失败，保留草稿以供恢复。"
         case .unsupportedComplexWrite: return "Excalidraw 与 Canvas 只允许阅读和选材，不可由通用 Markdown 写入器覆盖。"
         }
@@ -930,12 +930,13 @@ enum ImVaultCommitOutcome {
     case written(recoveryURL: URL)
 }
 
-/// Source writes are blocked in production until physical File Provider /
-/// iCloud validation succeeds. The DEBUG-only QA flow is deliberately separate:
-/// only a user-selected disposable folder with an exact sentinel *folder name*
-/// can be changed, and only following a complete diff and explicit confirmation.
+/// Real source write is enabled only through the verified draft/diff/consent
+/// pipeline. Choosing a Vault grants no automatic write authority: each commit
+/// still requires an explicit full-diff approval, an exact byte-version CAS,
+/// a durable private preimage backup and a post-write byte readback.
+/// The old rendered-Markdown overwrite API stays permanently disabled.
 enum ImVaultGuardedWrite {
-    static let productionWriteEnabled = false
+    static let productionWriteEnabled = true
     private static let mutex = NSLock()
 
     #if DEBUG
@@ -981,6 +982,18 @@ enum ImVaultGuardedWrite {
             completion(.failure(ImVaultSyncFailure.writesLocked))
             return
         }
+        #if DEBUG
+        // The F02 interrupted-duplex fixture intentionally simulates a
+        // refused source write even after the production gate is enabled.
+        // Never apply this fault to an ordinary user's Vault or Release build.
+        if ImpressV11UITestFixture.enabled &&
+           draft.identity.vaultID == ImpressV11UITestFixture.vaultID &&
+           !deviceQATestCopyConfirmed &&
+           ProcessInfo.processInfo.arguments.contains("-ImpressV11FaultF02DenyNote") {
+            completion(.failure(ImVaultSyncFailure.writesLocked))
+            return
+        }
+        #endif
         ImVaultReadOnlyProbe.shared.withAuthorizedRoot({ root, vaultID in
             guard draft.identity.vaultID == vaultID else {
                 throw ImVaultSyncFailure.wrongVault
@@ -1013,8 +1026,8 @@ enum ImVaultGuardedWrite {
         #endif
     }
 
-    /// The only authorized common write mechanism for fixtures and a
-    /// deliberately selected QA-only test Vault. Production remains locked.
+    /// The only authorized common write mechanism for isolated test fixtures
+    /// and user-selected, security-scoped production Vault files.
     private static func commitVerified(root: URL, draft: ImVaultDraft,
                               userConfirmedDiff: Bool) throws -> ImVaultCommitOutcome {
         try draft.validate()
@@ -1042,9 +1055,14 @@ enum ImVaultGuardedWrite {
             do {
                 try ImVaultReadSync.enforceContainment(coordinatedFile, root: root)
                 let v = try coordinatedFile.resourceValues(forKeys: [
-                    .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                    .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey,
+                    .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
                 guard v.isRegularFile == true, v.isSymbolicLink != true else {
                     throw ImVaultSyncFailure.unsafePath
+                }
+                if v.isUbiquitousItem == true &&
+                   v.ubiquitousItemDownloadingStatus == .notDownloaded {
+                    throw ImVaultSyncFailure.notDownloaded
                 }
                 guard (v.fileSize ?? 0) <= 8 * 1024 * 1024 else {
                     throw ImVaultSyncFailure.tooLarge
@@ -1061,6 +1079,10 @@ enum ImVaultGuardedWrite {
                 case .conflict:
                     throw ImVaultSyncFailure.conflict
                 case .safeToWrite:
+                    // Archive the exact approved proposal before any external
+                    // side effect: a subsequent draft edit cannot erase undo
+                    // evidence for an already-applied change.
+                    try ImVaultPrivateStore.archiveApprovedDraft(draft)
                     // A failure to persist the complete recovery byte copy
                     // ABORTS before the first attempt to write source content.
                     let backup = try ImVaultPrivateStore.backupBeforeWrite(
