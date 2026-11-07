@@ -1,0 +1,187 @@
+name: Impress iPhone 13 unsigned IPA (iOS 16.7+)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ios16-unsigned-ipa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-iphoneos:
+    runs-on: macos-26
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify source revision and build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          git rev-parse HEAD
+          python3 .github/scripts/check_public_mirror.py
+          node .github/scripts/test_deepseek_bridge.js
+          python3 .github/scripts/check_november_features.py
+          python3 .github/scripts/test_ios16_feature_routes.py
+
+      - name: Compile REAL offline Markdown and diagram readers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Scripts/DiagramReader
+          npm install --no-audit --no-fund --no-package-lock
+          npm run build
+          cd ../..
+          for f in \
+            aReuImpress-iPhone/Resources/DiagramReader/index.html \
+            aReuImpress-iPhone/Resources/DiagramReader/reader.js \
+            aReuImpress-iPhone/Resources/DiagramReader/manifest.json \
+            aReuImpress-iPhone/Resources/MarkdownReader/index.html \
+            aReuImpress-iPhone/Resources/MarkdownReader/reader.js \
+            aReuImpress-iPhone/Resources/MarkdownReader/graphs.js \
+            aReuImpress-iPhone/Resources/MarkdownReader/katex.min.css \
+            aReuImpress-iPhone/Resources/MarkdownReader/manifest.json; do
+            test -s "$f" || { echo "Missing real offline reader: $f"; exit 1; }
+          done
+          test "$(find aReuImpress-iPhone/Resources/MarkdownReader/fonts -name '*.woff2' | wc -l | tr -d ' ')" -ge 10
+
+      - name: Recreate excluded non-brand images only for a QA IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, zlib
+          def chunk(name, data):
+              return struct.pack('>I', len(data)) + name + data + struct.pack(
+                  '>I', zlib.crc32(name + data) & 0xffffffff)
+          # Use 2x2 neutral RGBA stand-ins solely because public sources
+          # deliberately exclude old images. No original icon is replaced.
+          png = (b'\x89PNG\r\n\x1a\n' +
+              chunk(b'IHDR', struct.pack('>IIBBBBB', 2, 2, 8, 6, 0, 0, 0)) +
+              chunk(b'IDAT', zlib.compress(b'\x00' + b'\xdc\xdc\xdc\xff'*2 +
+                                           b'\x00' + b'\xdc\xdc\xdc\xff'*2)) +
+              chunk(b'IEND', b''))
+          root = Path('aReuImpress-iPhone/Resources/ImCard')
+          root.mkdir(parents=True, exist_ok=True)
+          for name in ('imcard_wallpaper.png', 'imcard_normal@2x.png',
+                       'imcard_hard@2x.png', 'imcard_easy@2x.png',
+                       'imcard_again@2x.png'):
+              (root / name).write_bytes(png)
+          PY
+          mkdir -p Pods/IQKeyboardManagerSwift/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle
+          cat > Pods/IQKeyboardManagerSwift/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.areu.impress.ci.iqkeyboard-placeholder</string></dict></plist>
+          PLIST
+
+      - name: Align checked-in Pods deployment floor without pod install or update
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -pi -e 'gsub(/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/, "IPHONEOS_DEPLOYMENT_TARGET = 16.7;")' \
+            Pods/Pods.xcodeproj/project.pbxproj
+
+      - name: Resolve pinned SwiftPM dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone-AltStore \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM"
+
+      - name: Compile actual iPhoneOS arm64 app (unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone-AltStore \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM" \
+            -derivedDataPath "$RUNNER_TEMP/ImpressDeviceBuild" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS= \
+            ENABLE_DEBUG_DYLIB=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
+            build > "$RUNNER_TEMP/device-build.log" 2>&1 || {
+              grep -E 'error:|fatal error:|BUILD FAILED' "$RUNNER_TEMP/device-build.log" | tail -100 || true
+              tail -180 "$RUNNER_TEMP/device-build.log"
+              exit 1
+            }
+          grep -E '\*\* BUILD SUCCEEDED \*\*' "$RUNNER_TEMP/device-build.log"
+
+      - name: Verify package and produce one SHA256-verified IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/ImpressDeviceBuild/Build/Products/Debug-iphoneos/aReuImpress-iPhone.app"
+          test -d "$APP"
+          APPID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          MINOS="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")"
+          EXEC="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
+          test "$APPID" = "com.areu2.iphone"
+          test "$MINOS" = "16.7"
+          test -x "$APP/$EXEC"
+          lipo -archs "$APP/$EXEC" | grep -qw arm64
+          if codesign --verify "$APP" > /dev/null 2>&1; then
+            echo "Expected unsigned app. Refusing to mislabel a signed binary."
+            exit 1
+          fi
+          test ! -e "$APP/embedded.mobileprovision"
+          test ! -d "$APP/_CodeSignature"
+          test -s "$APP/MarkdownReader/reader.js"
+          test -s "$APP/MarkdownReader/graphs.js"
+          test -s "$APP/DiagramReader/reader.js"
+          test -s "$APP/MarkdownReader/katex.min.css"
+          test -s "$APP/MarkdownReader/manifest.json"
+          if find "$APP" -iname '*.xctest' -o -name 'XCTest.framework' | grep -q .; then
+            echo "Unexpected XCTest payload"; exit 1
+          fi
+
+          mkdir -p dist "$RUNNER_TEMP/ImpressIPAPayload/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ImpressIPAPayload/Payload/"
+          SHORT="${GITHUB_SHA:0:8}"
+          NAME="Impress-newtest-$SHORT-iOS16.7-unsigned.ipa"
+          ditto -c -k --sequesterRsrc "$RUNNER_TEMP/ImpressIPAPayload" "dist/$NAME"
+          unzip -tqq "dist/$NAME"
+          unzip -Z1 "dist/$NAME" | grep -q '^Payload/aReuImpress-iPhone.app/Info.plist$'
+          shasum -a 256 "dist/$NAME" > dist/SHA256SUMS
+          cat > dist/BUILD_INFO.txt <<EOF
+          Source: aRReuu/newtest
+          Commit: $GITHUB_SHA
+          Bundle ID: $APPID
+          Minimum iOS: $MINOS
+          App version: $VERSION
+          Architecture: $(lipo -archs "$APP/$EXEC")
+          Signature: UNSIGNED (must be signed for device installation)
+          Offline DiagramReader/MarkdownReader: compiled and included
+          Original brand AppIcon and 5 historical ImCard graphics: absent from public source
+          Historical ImCard graphics: NEUTRAL QA placeholders only
+          Signing entitlements: disabled for side-load compatibility
+          ZIP package SHA-256: $(shasum -a 256 "dist/$NAME" | awk '{print $1}')
+          WARNING: QA candidate, not production or device-verified.
+          EOF
+          ls -lh dist/*
+          cat dist/BUILD_INFO.txt
+          cat dist/SHA256SUMS
+
+      - name: Upload unsigned IPA (NOT a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Impress-newtest-iOS16_7-unsigned-IPA
+          path: dist/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
