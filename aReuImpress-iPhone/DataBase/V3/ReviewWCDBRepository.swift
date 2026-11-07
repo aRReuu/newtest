@@ -681,6 +681,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
     private struct LegacyScheduleMetadata: Codable {
         let sourceID: Int
         let sourceNoteID: Int?
+        let originalCardType: Int
         let oldState: Int
         let oldDue: Date?
         let oldLastReview: Date?
@@ -792,12 +793,13 @@ public actor ReviewWCDBRepository: ReviewRepository {
         }
         defer { sqlite3_close(db) }
         let cards = try readLegacyRows(connection: db, table: "impress_card") { row in
-            guard let id = row.integer("id"), id > 0,
-                  let question = row.text("question"), !question.trimmingCharacters(
-                    in: .whitespacesAndNewlines).isEmpty,
-                  [0, 2, 3].contains(row.integer("card_type") ?? 0) else {
+            guard let id = row.integer("id"), id > 0 else {
                 throw ReviewWCDBError.corruptRecord
             }
+            let originalQuestion = row.text("question") ?? ""
+            let question = originalQuestion.trimmingCharacters(in:
+                .whitespacesAndNewlines).isEmpty
+                ? "旧版无文字卡片 #" + String(id) : originalQuestion
             return LegacyCard(id: id, noteID: row.integer("note_id"),
                 question: question, answer: row.text("answer"),
                 cardType: row.integer("card_type") ?? 0,
@@ -881,26 +883,38 @@ public actor ReviewWCDBRepository: ReviewRepository {
                 }
                 let oldCode = originalCard.state
                 let candidateState = [1, 2, 3].contains(oldCode) ? oldCode : 0
-                // A pre-FSRS6 row with incomplete stability/difficulty cannot
-                // safely be continued as a review card. It remains recoverable
-                // as a new card with full legacy metrics held in provenance.
-                let stateCode = candidateState == 2 &&
-                    (originalCard.stability <= 0 || originalCard.difficulty <= 0)
+                // Never fabricate an FSRS-6 review event from legacy
+                // aggregate counters. Preserve the original counters separately.
+                // Resume old scheduling only when its minimal state is coherent.
+                let canResume = originalCard.lastReview != nil && (
+                    candidateState == 1 || (
+                        originalCard.stability > 0 && originalCard.difficulty > 0))
+                let stateCode = candidateState == 0 || !canResume
                     ? 0 : candidateState
                 let lastReview = stateCode == 0 ? nil : originalCard.lastReview
+                let validChoice = originalCard.cardType == 2 &&
+                    !(originalCard.choices ?? "").isEmpty &&
+                    !(originalCard.correctIndices ?? "").isEmpty
+                let validImage = originalCard.cardType == 3 &&
+                    originalCard.imageData != nil
+                // Unsupported retired card types still enter the collection
+                // as editable text cards; their original type and raw content
+                // remain intact in the provenance and content columns.
+                let displayType = validChoice ? 2 : (validImage ? 3 : 0)
                 let fsrs = Card(
                     due: originalCard.due ?? now,
-                    stability: max(0, originalCard.stability),
-                    difficulty: max(0, originalCard.difficulty),
+                    stability: stateCode == 0 ? 0 : max(0, originalCard.stability),
+                    difficulty: stateCode == 0 ? 0 : max(0, originalCard.difficulty),
                     elapsedDays: max(0, lastReview.map {
                         now.timeIntervalSince($0) / 86_400
                     } ?? 0),
                     scheduledDays: max(0, lastReview.map {
                         (originalCard.due ?? now).timeIntervalSince($0) / 86_400
                     } ?? 0),
-                    learningSteps: max(0, originalCard.relearningStep),
-                    reps: max(0, originalCard.reviewCount),
-                    lapses: max(0, originalCard.lapseCount),
+                    learningSteps: stateCode == 0 ? 0 :
+                        max(0, originalCard.relearningStep),
+                    reps: stateCode == 0 ? 0 : max(0, originalCard.reviewCount),
+                    lapses: stateCode == 0 ? 0 : max(0, originalCard.lapseCount),
                     state: stateCode == 1 ? .learning :
                            (stateCode == 2 ? .review :
                             (stateCode == 3 ? .relearning : .new)),
@@ -911,7 +925,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
                 card.answerText = originalCard.answer
                 card.choices = originalCard.choices
                 card.correctIndices = originalCard.correctIndices
-                card.cardType = originalCard.cardType
+                card.cardType = displayType
                 card.imageData = originalCard.imageData
                 card.sourceNotePath = originalCard.noteID.map {
                     "legacy-note:" + String($0)
@@ -933,6 +947,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
                     intoTable: contentVersionsTable)
                 let metadata = LegacyScheduleMetadata(
                     sourceID: originalCard.id, sourceNoteID: originalCard.noteID,
+                    originalCardType: originalCard.cardType,
                     oldState: originalCard.state, oldDue: originalCard.due,
                     oldLastReview: originalCard.lastReview,
                     difficulty: originalCard.difficulty,
