@@ -2764,7 +2764,7 @@ final class ImpressV3CalibrationDrawerView: UIView, UIGestureRecognizerDelegate 
         onOpen?(selectedPeriod)
     }
 
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
         // Period selection is exclusively a native UISegmentedControl gesture.
         if isExpanded && pan.location(in: self).y <= periodControl.frame.maxY {
