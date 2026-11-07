@@ -62,3 +62,75 @@ jobs:
           xcrun swiftc -typecheck -swift-version 5 \
             -target arm64-apple-ios16.7 -sdk "$SDK" \
             "$RUNNER_TEMP/ImpressWidgetAvailabilityProbe.swift"
+
+      - name: Typecheck iOS16 UIKit translation consent reader without Pods
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          text = Path("aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift").read_text()
+          marker = "// MARK: - iOS 16.7-17 compatible translation with explicit provider consent"
+          Path(os.environ["RUNNER_TEMP"], "ImpressLegacyTranslationReader.swift").write_text(
+              "import Foundation\nimport UIKit\n" + text[text.index(marker):])
+          PY
+          cat > "$RUNNER_TEMP/ImpressLegacyTranslationStubs.swift" <<'SWIFT'
+          import Foundation
+          import UIKit
+
+          func V3L(_ value: String) -> String { value }
+          struct ImVaultFileIdentity: Equatable { var name: String = "" }
+          struct ImVaultDocument {
+              var identity: ImVaultFileIdentity
+              var digest: String = ""
+              var markdown: String = ""
+          }
+          @MainActor
+          final class ImVaultReadSync {
+              static let shared = ImVaultReadSync()
+              func read(_ id: ImVaultFileIdentity, completion: @escaping (Result<ImVaultDocument, Error>) -> Void) {}
+          }
+          enum ImpressAITask { case knowledgeSynthesis }
+          struct ImpressAIConnection { var title = "" }
+          struct ImpressAIModel { var identifier = "" }
+          struct ImpressAIResolvedRoute {
+              var connection = ImpressAIConnection()
+              var model = ImpressAIModel()
+          }
+          struct ImpressAIRegistry {
+              func resolve(_ task: ImpressAITask) throws -> ImpressAIResolvedRoute { ImpressAIResolvedRoute() }
+          }
+          @MainActor
+          final class ImpressAIConfigStore {
+              static let shared = ImpressAIConfigStore()
+              var registry = ImpressAIRegistry()
+          }
+          enum ImpressAIRequestPolicy {
+              static func validate(_ route: ImpressAIResolvedRoute) throws {}
+          }
+          enum ImpressAIServiceError: Error { case response }
+          actor ImpressAIHTTPClient {
+              static let shared = ImpressAIHTTPClient()
+              func complete(route: ImpressAIResolvedRoute, system: String, user: String)
+                  async throws -> String { user }
+          }
+          @MainActor
+          enum ImpressV3Appearance {
+              static let page = UIColor.systemBackground
+              static let primaryText = UIColor.label
+              static let secondaryText = UIColor.secondaryLabel
+              enum Typography {
+                  static let body = UIFont.preferredFont(forTextStyle: .body)
+                  static let supporting = UIFont.preferredFont(forTextStyle: .subheadline)
+              }
+              enum Metrics { static let rowSpacing: CGFloat = 8 }
+              static func styleSegmentedControl(_ control: UISegmentedControl, prominent: Bool) {}
+              static func styleQuietButton(_ button: UIButton, title: String, symbol: String) {}
+          }
+          SWIFT
+          xcrun swiftc -typecheck -swift-version 5 \
+            -target arm64-apple-ios16.7 -sdk "$SDK" \
+            "$RUNNER_TEMP/ImpressLegacyTranslationStubs.swift" \
+            "$RUNNER_TEMP/ImpressLegacyTranslationReader.swift"
