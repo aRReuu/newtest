@@ -1,4 +1,4 @@
-name: iOS 16.7 STT SDK typecheck (isolated)
+name: iOS 16.7 API SDK typechecks (isolated)
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechService.swift
+      - aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift
+      - ImpressCalibrationWidgets/ImpressCalibrationWidgets.swift
       - .github/workflows/ios16-stt-sdk-typecheck.yml
   workflow_dispatch:
 
@@ -32,3 +34,31 @@ jobs:
             -target arm64-apple-ios16.7 -sdk "$SDK" \
             "$RUNNER_TEMP/ImpressV3LStub.swift" \
             aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechService.swift
+
+      - name: Typecheck iOS 18 Translation reader and iOS 17 Widget fallback on 16.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root = Path.cwd()
+          temp = Path(os.environ["RUNNER_TEMP"])
+          note = (root / "aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift").read_text()
+          start = note.index("// MARK: - Full-document on-device Chinese translation (iOS 18+)")
+          end = note.index("// MARK: - iOS 16.7-17 compatible translation", start)
+          (temp / "ImpressTranslationAvailabilityProbe.swift").write_text(
+              'import Foundation\nimport SwiftUI\nimport Translation\nfunc V3L(_ value: String) -> String { value }\n' + note[start:end])
+          widget = (root / "ImpressCalibrationWidgets/ImpressCalibrationWidgets.swift").read_text()
+          start = widget.index("// iOS 17 added WidgetKit container backgrounds")
+          end = widget.index("private struct CalibrationWidgetView", start)
+          (temp / "ImpressWidgetAvailabilityProbe.swift").write_text(
+              "import SwiftUI\n" + widget[start:end])
+          PY
+          xcrun swiftc -typecheck -swift-version 5 \
+            -target arm64-apple-ios16.7 -sdk "$SDK" \
+            "$RUNNER_TEMP/ImpressTranslationAvailabilityProbe.swift"
+          xcrun swiftc -typecheck -swift-version 5 \
+            -target arm64-apple-ios16.7 -sdk "$SDK" \
+            "$RUNNER_TEMP/ImpressWidgetAvailabilityProbe.swift"
