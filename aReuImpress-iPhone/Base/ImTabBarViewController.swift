@@ -22,8 +22,8 @@ class ImTabBarViewController: UITabBarController
 
     @objc private func refreshLanguage() {
         guard let navigation = viewControllers?.compactMap({ $0 as? UINavigationController }),
-              navigation.count == 4 else { return }
-        let keys = ["闪卡", "笔记", "校准器", "设置"]
+              navigation.count == 3 else { return }
+        let keys = ["闪卡", "笔记", "设置"]
         for (index, item) in navigation.enumerated() {
             item.tabBarItem.title = V3L(keys[index])
         }
@@ -51,21 +51,13 @@ class ImTabBarViewController: UITabBarController
         notesNav.tabBarItem.image = UIImage(systemName: "text.book.closed")
         notesNav.tabBarItem.selectedImage = UIImage(systemName: "text.book.closed.fill")
 
-        // The existing calibration screen and shared store are a primary route.
-        // Keeping its previous Settings entry preserves an alternate route, not data.
-        let calibrationVC = ImpressCalibrationViewController()
-        let calibrationNav = ImNavigationViewController(rootViewController: calibrationVC)
-        calibrationNav.tabBarItem.title = V3L("校准器")
-        calibrationNav.tabBarItem.image = UIImage(systemName: "chart.xyaxis.line")
-        calibrationNav.tabBarItem.selectedImage = UIImage(systemName: "chart.xyaxis.line")
-
         let settingsVC = ImpressV3SettingsHubViewController()
         let settingsNav = ImNavigationViewController(rootViewController: settingsVC)
         settingsNav.tabBarItem.title = V3L("设置")
         settingsNav.tabBarItem.image = UIImage(systemName: "gearshape")
         settingsNav.tabBarItem.selectedImage = UIImage(systemName: "gearshape.fill")
 
-        self.viewControllers = [cardNav, notesNav, calibrationNav, settingsNav]
+        self.viewControllers = [cardNav, notesNav, settingsNav]
         // Page extends underneath the native floating bar; no fake glass.
         view.backgroundColor = ImpressV3Appearance.page
         ImpressV3Appearance.styleTabBar(tabBar)
