@@ -329,7 +329,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
                 let cursor = el || document.body;
                 for (let i = 0; cursor && i < 15; i++, cursor = cursor.parentElement) {
                     const match = getComputedStyle(cursor).backgroundColor.match(
-                        /^rgba?\\((\\d+)[, ]+?(\\d+)[, ]+?(\\d+)(?:[, /]+([\\d.]+))?\\)$/);
+                        /^rgba?\((\d+)[, ]+?(\d+)[, ]+?(\d+)(?:[, /]+([\d.]+))?\)$/);
                     if (match && (!match[4] || Number(match[4]) > 0.98))
                         return [Number(match[1]), Number(match[2]), Number(match[3])];
                 }

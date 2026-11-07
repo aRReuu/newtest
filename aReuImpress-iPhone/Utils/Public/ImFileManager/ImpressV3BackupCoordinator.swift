@@ -438,6 +438,9 @@ actor ImpressV3BackupCoordinator {
         }
     }
 
+    /// One stable iCloud Drive ZIP. Build and verify a replacement beside the
+    /// destination; never delete the last good cloud copy before validation.
+    /// Local versioned backups remain available for rollback and offline retry.
     private static func copyToAuthorizedCloud(_ archive: URL) throws {
         guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
             throw ImpressV3BackupFailure.notAuthorized
@@ -449,38 +452,59 @@ actor ImpressV3BackupCoordinator {
             throw ImpressV3BackupFailure.notAuthorized
         }
         defer { folder.stopAccessingSecurityScopedResource() }
-        let target = folder.appendingPathComponent(archive.lastPathComponent)
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var coordinatorError: NSError?
-        var copyError: (any Swift.Error)?
-        coordinator.coordinate(writingItemAt: target, options: [],
-                               error: &coordinatorError) { location in
-            do {
-                // A previous copy may have completed before the app could
-                // record the acknowledgement. An identical file is success;
-                // a different existing file must never be overwritten.
-                if !FileManager.default.fileExists(atPath: location.path) {
-                    try FileManager.default.copyItem(at: archive, to: location)
-                }
-                let original = try ImpressV3BackupArchive.inspectFile(
-                    archive, name: archive.lastPathComponent).0
-                let copied = try ImpressV3BackupArchive.inspectFile(
-                    location, name: archive.lastPathComponent).0
-                guard original.sha256 == copied.sha256,
-                      original.size == copied.size else {
-                    throw ImpressV3BackupFailure.invalidChecksum
-                }
-            } catch { copyError = error }
-        }
-        if let coordinatorError { throw coordinatorError }
-        if let copyError { throw copyError }
-        // Local file-provider write is verified; remote upload scheduling is
-        // controlled by iOS/iCloud and must not be presented as cloud sync done.
-        let left = try ImpressV3BackupArchive.inspectFile(archive, name: archive.lastPathComponent).0
-        let right = try ImpressV3BackupArchive.inspectFile(target, name: archive.lastPathComponent).0
-        guard left.sha256 == right.sha256 else {
+
+        let target = folder.appendingPathComponent("ImpressV3-latest.zip")
+        let stage = folder.appendingPathComponent(
+            ".ImpressV3-replacement-" + UUID().uuidString + ".zip")
+        let fm = FileManager.default
+        defer { try? fm.removeItem(at: stage) }
+        let original = try ImpressV3BackupArchive.inspectFile(
+            archive, name: archive.lastPathComponent).0
+        // Copy a complete, previously verified snapshot. An interrupted staging
+        // write is never confused with the canonical ZIP.
+        try fm.copyItem(at: archive, to: stage)
+        let staged = try ImpressV3BackupArchive.inspectFile(
+            stage, name: stage.lastPathComponent).0
+        guard original.size == staged.size, original.sha256 == staged.sha256 else {
             throw ImpressV3BackupFailure.invalidChecksum
         }
+
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationFailure: NSError?
+        var replacementFailure: (any Swift.Error)?
+        coordinator.coordinate(writingItemAt: target, options: .forReplacing,
+                               error: &coordinationFailure) { resolved in
+            do {
+                if fm.fileExists(atPath: resolved.path) {
+                    let previous = try ImpressV3BackupArchive.inspectFile(
+                        resolved, name: resolved.lastPathComponent).0
+                    if previous.sha256 != original.sha256 ||
+                       previous.size != original.size {
+                        // Foundation preserves the previous file on a failed
+                        // replacement; no removeItem(target) before the swap.
+                        _ = try fm.replaceItemAt(resolved, withItemAt: stage,
+                            backupItemName: nil, options: [])
+                    }
+                } else {
+                    try fm.moveItem(at: stage, to: resolved)
+                }
+                let copied = try ImpressV3BackupArchive.inspectFile(
+                    resolved, name: resolved.lastPathComponent).0
+                guard copied.sha256 == original.sha256,
+                      copied.size == original.size else {
+                    throw ImpressV3BackupFailure.invalidChecksum
+                }
+            } catch { replacementFailure = error }
+        }
+        if let coordinationFailure { throw coordinationFailure }
+        if let replacementFailure { throw replacementFailure }
+        let copied = try ImpressV3BackupArchive.inspectFile(
+            target, name: target.lastPathComponent).0
+        guard copied.sha256 == original.sha256, copied.size == original.size else {
+            throw ImpressV3BackupFailure.invalidChecksum
+        }
+        // This acknowledges only the local File Provider replacement. iCloud
+        // propagation to Apple's servers remains asynchronous and unverified.
         UserDefaults.standard.set(Date(), forKey: cloudDateKey)
         UserDefaults.standard.removeObject(forKey: pendingCloudFileKey)
         UserDefaults.standard.removeObject(forKey: failureKey)
