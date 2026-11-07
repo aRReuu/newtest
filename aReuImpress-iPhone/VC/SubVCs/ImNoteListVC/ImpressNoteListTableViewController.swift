@@ -278,8 +278,9 @@ class ImpressNoteListTableViewController: ImBaseViewController
         // R04.2: No legacy database-ID viewer in the V3 Notes tab.
         navigationItem.leftBarButtonItem = nil
 
-        // P0-1: explicit read-only external Vault probe. The old importer
-        // is still available only as a first-time, NON-overwriting local copy.
+        // Vault selection verifies a read-capable scoped bookmark. Choosing
+        // a folder alone never writes anything; production Markdown edits
+        // require exact source diff/approval and a verified coordinated CAS.
         let expandFolders = UIAction(title: V3L("全部展开"),
             image: UIImage(systemName: "chevron.down")) { [weak self] _ in
                 self?.setAllFoldersExpanded(true)
@@ -288,11 +289,11 @@ class ImpressNoteListTableViewController: ImBaseViewController
             image: UIImage(systemName: "chevron.right")) { [weak self] _ in
                 self?.setAllFoldersExpanded(false)
             }
-        let connectVault = UIAction(title: V3L("选择 Obsidian Vault（只读）"),
+        let connectVault = UIAction(title: V3L("选择 Obsidian Vault"),
                                     image: UIImage(systemName: "folder.badge.plus")) { [weak self] _ in
             self?.chooseReadOnlyVault()
         }
-        let inspectSaved = UIAction(title: V3L("验证已授权 Vault（只读）"),
+        let inspectSaved = UIAction(title: V3L("验证已授权 Vault"),
                                     image: UIImage(systemName: "checkmark.shield")) { [weak self] _ in
             self?.inspectSavedVault()
         }
@@ -307,11 +308,11 @@ class ImpressNoteListTableViewController: ImBaseViewController
             }
         let vaultItem = UIBarButtonItem(image: UIImage(systemName: "folder"),
                                          style: .plain, target: nil, action: nil)
-        vaultItem.menu = UIMenu(title: V3L("Vault · 只读"), children: [
+        vaultItem.menu = UIMenu(title: V3L("Vault · 已授权"), children: [
             expandFolders, collapseFolders, connectVault, inspectSaved, disconnectVault,
             recoveredLocal
         ])
-        vaultItem.accessibilityLabel = V3L("Vault · 只读")
+        vaultItem.accessibilityLabel = V3L("Vault · 已授权")
         vaultItem.tintColor = ImpressV3Appearance.navigationActionInk
         navigationItem.rightBarButtonItem = vaultItem
     }
@@ -361,12 +362,12 @@ class ImpressNoteListTableViewController: ImBaseViewController
             let sample = report.sampleRelativePaths.isEmpty
                 ? "无 Markdown 样本。请确认所选目录。"
                 : report.sampleRelativePaths.joined(separator: "\n")
-            let text = "Vault: \(report.name)\nMarkdown: \(report.markdownCount) 篇\(report.wasTruncated ? "（扫描上限）" : "")\n样本读取: \(report.sampleBytesRead) bytes\n授权恢复: \(report.restoredFromBookmark ? "已验证" : "首次连接")\n\n\(sample)\n\n仅校验授权和读取，未写入任何 Obsidian 文件。真实双向同步尚未启用。"
-            alert = UIAlertController(title: V3L("Vault 只读验证完成"),
+            let text = "Vault: \(report.name)\nMarkdown: \(report.markdownCount) 篇\(report.wasTruncated ? "（扫描上限）" : "")\n样本读取: \(report.sampleBytesRead) bytes\n授权恢复: \(report.restoredFromBookmark ? "已验证" : "首次连接")\n\n\(sample)\n\n本次仅验证授权和读取，没有写入笔记。现在可在完整差异预览与单次确认后受控写回 Markdown；不执行静默自动覆盖。"
+            alert = UIAlertController(title: V3L("Vault 授权验证完成"),
                                       message: text, preferredStyle: .alert)
         case let .failure(error):
             if let vaultError = error as? ImVaultReadOnlyError, case .noFolder = vaultError { return }
-            alert = UIAlertController(title: V3L("Vault 只读验证未通过"),
+            alert = UIAlertController(title: V3L("Vault 授权验证未通过"),
                                       message: error.localizedDescription,
                                       preferredStyle: .alert)
         }
