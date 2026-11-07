@@ -109,11 +109,10 @@ for contract in (
     'ImVaultPrivateStore.archiveApprovedDraft(draft)',
     'ImVaultPrivateStore.backupBeforeWrite(',
     'try Data(contentsOf: coordinatedFile) == bytes',
-    'ImVaultWriteDecision',
+    'draft.decision(against: current)',
     'ImVaultSyncFailure.conflict',
-    'source writes',
 ):
-    assert contract in vault or contract == 'source writes', ("OBSIDIAN_GUARD_LOST", contract)
+    assert contract in vault, ("OBSIDIAN_GUARD_LOST", contract)
 assert 'ImVaultGuardedWrite.commitAuthorized(' in read(
     "aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift")
 
