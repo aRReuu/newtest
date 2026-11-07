@@ -890,6 +890,7 @@ final class ImpressR041NativeNavigationTests: XCTestCase {
         XCTAssertEqual(observer.edits, 1)
     }
 
+    @MainActor
     func testSpeechSettingsShowsThreeLocalesWithoutMicrophoneUse() {
         let screen = ImpressSpeechSettingsViewController()
         screen.loadViewIfNeeded()
