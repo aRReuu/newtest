@@ -23,6 +23,11 @@ jobs:
         run: python3 .github/scripts/check_november_features.py
       - name: Calibration drawer and navigation contract (static)
         run: python3 .github/scripts/test_calibration_drawer_contract.py
+      - name: iOS 16.7 floor, legacy API, offline STT and consented translation
+        run: |
+          python3 .github/scripts/verify_ios26_floor.py
+          python3 .github/scripts/verify_apple_stt_contract.py
+          python3 .github/scripts/test_ios16_feature_routes.py
       - name: Parse changed Swift files only (no build, linking or Pods)
         run: |
           swiftc -frontend -parse \
@@ -33,6 +38,9 @@ jobs:
             aReuImpress-iPhone/VC/MainVCs/ImCalibrationVC/ImpressCalibrationViewController.swift \
             aReuImpress-iPhone/Utils/Constansts/ImColorConstants.swift \
             aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechInputUI.swift \
+            aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechService.swift \
+            aReuImpress-iPhone/Utils/Public/ImSpeech/ImpressSpeechSettingsViewController.swift \
+            ImpressCalibrationWidgets/ImpressCalibrationWidgets.swift \
             aReuImpress-iPhone/VC/SubVCs/ImWebVC/ImWebViewController.swift \
             aReuImpress-iPhone/Utils/Public/ImAI/ImpressAISettingsViewController.swift \
             aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3CardComposerViewController.swift \
