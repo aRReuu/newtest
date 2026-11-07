@@ -82,6 +82,7 @@ struct ImpressTranscriptBuffer {
 /// iOS 26-compatible microphone -> AnalyzerInput bridge.
 /// The newer CaptureInputSequenceProvider requires iOS 27 and must not be
 /// referenced by the iOS 26 deployment target.
+@available(iOS 26.0, *)
 private final class ImpressSpeechAudioPipe: @unchecked Sendable {
     private let queue = DispatchQueue(label: "impress.speech.audio-conversion",
                                       qos: .userInitiated)
@@ -189,9 +190,10 @@ private final class ImpressSpeechAudioPipe: @unchecked Sendable {
     }
 }
 
+@available(iOS 26.0, *)
 @MainActor
-final class ImpressSpeechService: NSObject {
-    static let shared = ImpressSpeechService()
+final class ImpressSpeechModernService: NSObject {
+    static let shared = ImpressSpeechModernService()
 
     enum State {
         case idle, preparing, recording, finishing
@@ -436,4 +438,259 @@ final class ImpressSpeechService: NSObject {
     @objc private func cancelOnInterruption() {
         Task { await cancel() }
     }
+}
+
+
+// MARK: - One public app-scoped service; platform-specific audio engines below.
+//
+// Existing input controls, undo semantics and Settings retain this facade.
+// iOS 16.7-25 must never instantiate SpeechAnalyzer or use cloud recognition.
+@MainActor
+final class ImpressSpeechService {
+    static let shared = ImpressSpeechService()
+
+    enum EngineName: String {
+        case speech = "SpeechTranscriber"
+        case dictation = "DictationTranscriber"
+        case legacyOffline = "SFSpeechRecognizer (on-device)"
+    }
+
+    struct Availability {
+        let engine: EngineName?
+        let actualLocale: Locale?
+        let installed: Bool
+    }
+
+    private let legacy = ImpressLegacySpeechEngine()
+    private init() {}
+
+    func availability(for choice: ImpressSpeechLocale) async -> Availability {
+        if #available(iOS 26.0, *) {
+            let modern = await ImpressSpeechModernService.shared.availability(for: choice)
+            let name: EngineName?
+            switch modern.engine {
+            case .speech: name = .speech
+            case .dictation: name = .dictation
+            case nil: name = nil
+            }
+            return Availability(engine: name, actualLocale: modern.actualLocale,
+                                installed: modern.installed)
+        }
+        let supported = legacy.supportsLocalRecognition(choice)
+        return Availability(engine: supported ? .legacyOffline : nil,
+                            actualLocale: supported ? choice.locale : nil,
+                            installed: supported)
+    }
+
+    func downloadModel(for choice: ImpressSpeechLocale) async throws {
+        if #available(iOS 26.0, *) {
+            try await ImpressSpeechModernService.shared.downloadModel(for: choice)
+        } else {
+            // The legacy recognizer has no app-managed download API.
+            guard legacy.supportsLocalRecognition(choice) else {
+                throw ImpressSpeechFailure.unsupported
+            }
+        }
+    }
+
+    func start(choice: ImpressSpeechLocale,
+               onUpdate: @escaping (String, String) -> Void) async throws {
+        if #available(iOS 26.0, *) {
+            try await ImpressSpeechModernService.shared.start(
+                choice: choice, onUpdate: onUpdate)
+        } else {
+            try await legacy.start(choice: choice, onUpdate: onUpdate)
+        }
+    }
+
+    func finish() async throws -> String {
+        if #available(iOS 26.0, *) {
+            return try await ImpressSpeechModernService.shared.finish()
+        }
+        return try await legacy.finish()
+    }
+
+    func cancel() async {
+        if #available(iOS 26.0, *) {
+            await ImpressSpeechModernService.shared.cancel()
+        } else {
+            legacy.cancel()
+        }
+    }
+}
+
+// MARK: - iOS 16.7-25: privacy-preserving official Speech framework fallback
+//
+// SFSpeechRecognizer may use Apple's servers by default. We only enable a
+// request when local recognition is supported, and force the on-device path.
+@MainActor
+private final class ImpressLegacySpeechEngine: NSObject {
+    private enum State { case idle, preparing, recording, finishing }
+    private var state: State = .idle
+    private var recorder: AVAudioEngine?
+    private var recognizer: SFSpeechRecognizer?
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var finalText = ""
+    private var updateHandler: ((String, String) -> Void)?
+    private var finishWaiter: CheckedContinuation<String?, Never>?
+    private var generation = 0
+
+    func supportsLocalRecognition(_ choice: ImpressSpeechLocale) -> Bool {
+        guard let recognizer = SFSpeechRecognizer(locale: choice.locale) else { return false }
+        return recognizer.supportsOnDeviceRecognition && recognizer.isAvailable
+    }
+
+    func start(choice: ImpressSpeechLocale,
+               onUpdate: @escaping (String, String) -> Void) async throws {
+        guard case .idle = state else { throw ImpressSpeechFailure.busy }
+        state = .preparing
+        generation += 1
+        let ticket = generation
+        finalText = ""
+        updateHandler = onUpdate
+        do {
+            guard let recognizer = SFSpeechRecognizer(locale: choice.locale),
+                  recognizer.supportsOnDeviceRecognition && recognizer.isAvailable else {
+                throw ImpressSpeechFailure.unsupported
+            }
+            let authorized: Bool = await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { status in
+                    continuation.resume(returning: status == .authorized)
+                }
+            }
+            guard authorized else { throw ImpressSpeechFailure.denied }
+            let microphoneAllowed: Bool = await withCheckedContinuation { continuation in
+                AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+                    continuation.resume(returning: allowed)
+                }
+            }
+            guard microphoneAllowed else { throw ImpressSpeechFailure.denied }
+            guard generation == ticket else { throw ImpressSpeechFailure.canceled }
+
+            let audio = AVAudioSession.sharedInstance()
+            try audio.setCategory(.record, mode: .measurement)
+            try audio.setActive(true)
+            let engine = AVAudioEngine()
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            guard format.sampleRate > 0 else {
+                throw ImpressSpeechFailure.unavailableMicrophone
+            }
+
+            let input = SFSpeechAudioBufferRecognitionRequest()
+            input.requiresOnDeviceRecognition = true
+            input.shouldReportPartialResults = true
+            self.recognizer = recognizer
+            self.request = input
+            self.recorder = engine
+            self.state = .recording
+
+            recognitionTask = recognizer.recognitionTask(with: input) { [weak self] result, error in
+                Task { @MainActor [weak self] in
+                    guard let self, self.generation == ticket else { return }
+                    self.receive(result, error: error)
+                }
+            }
+            engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) {
+                [weak input] buffer, _ in
+                input?.append(buffer)
+            }
+            engine.prepare()
+            try engine.start()
+            guard engine.isRunning else {
+                throw ImpressSpeechFailure.unavailableMicrophone
+            }
+            NotificationCenter.default.addObserver(self,
+                selector: #selector(cancelOnInterruption),
+                name: UIApplication.willResignActiveNotification, object: nil)
+            NotificationCenter.default.addObserver(self,
+                selector: #selector(cancelOnInterruption),
+                name: AVAudioSession.interruptionNotification, object: nil)
+        } catch {
+            cancel()
+            throw error
+        }
+    }
+
+    private func receive(_ result: SFSpeechRecognitionResult?, error: Error?) {
+        guard case .recording = state else {
+            guard case .finishing = state else { return }
+            if let result, result.isFinal {
+                finalText = result.bestTranscription.formattedString
+                resolveFinishing(finalText)
+            } else if error != nil {
+                resolveFinishing(nil)
+            }
+            return
+        }
+        if let result {
+            let preview = result.bestTranscription.formattedString
+            if result.isFinal { finalText = preview }
+            updateHandler?(finalText, preview)
+        }
+        if error != nil {
+            // Never commit speculative partial text after an interruption.
+            updateHandler?(finalText, V3L("识别中断，请结束或取消"))
+        }
+    }
+
+    func finish() async throws -> String {
+        guard case .recording = state, let input = request else {
+            throw ImpressSpeechFailure.canceled
+        }
+        state = .finishing
+        if let recorder {
+            recorder.inputNode.removeTap(onBus: 0)
+            recorder.stop()
+        }
+        let ticket = generation
+        let recognized: String? = await withCheckedContinuation { waiter in
+            finishWaiter = waiter
+            input.endAudio()
+            // Bound driver stalls; never save partial transcripts on timeout.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(6))
+                guard let self, self.generation == ticket else { return }
+                self.resolveFinishing(nil)
+            }
+        }
+        let text = recognized ?? finalText
+        cancel()
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ImpressSpeechFailure.noFinalText
+        }
+        return text
+    }
+
+    private func resolveFinishing(_ result: String?) {
+        guard let waiter = finishWaiter else { return }
+        finishWaiter = nil
+        waiter.resume(returning: result)
+    }
+
+    func cancel() {
+        generation += 1
+        resolveFinishing(nil)
+        if let recorder {
+            recorder.inputNode.removeTap(onBus: 0)
+            recorder.stop()
+        }
+        recognitionTask?.cancel()
+        request?.endAudio()
+        request = nil
+        recognitionTask = nil
+        recognizer = nil
+        recorder = nil
+        finalText = ""
+        updateHandler = nil
+        state = .idle
+        NotificationCenter.default.removeObserver(self,
+            name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.removeObserver(self,
+            name: AVAudioSession.interruptionNotification, object: nil)
+        try? AVAudioSession.sharedInstance().setActive(
+            false, options: .notifyOthersOnDeactivation)
+    }
+
+    @objc private func cancelOnInterruption() { cancel() }
 }
