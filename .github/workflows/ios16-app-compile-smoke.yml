@@ -62,9 +62,9 @@ jobs:
           def chunk(kind, raw):
               return struct.pack(">I", len(raw)) + kind + raw + struct.pack(
                   ">I", zlib.crc32(kind + raw) & 0xffffffff)
-          png = (b"\\x89PNG\\r\\n\\x1a\\n" +
+          png = (b"\x89PNG\r\n\x1a\n" +
               chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) +
-              chunk(b"IDAT", zlib.compress(b"\\x00\\x00\\x00\\x00\\x00")) +
+              chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00\x00")) +
               chunk(b"IEND", b""))
           for name in ("imcard_wallpaper.png", "imcard_normal@2x.png",
                        "imcard_hard@2x.png", "imcard_easy@2x.png",
@@ -101,6 +101,7 @@ jobs:
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM" \
             -derivedDataPath "$RUNNER_TEMP/ImpressBuild" \
             CODE_SIGNING_ALLOWED=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
             ENABLE_USER_SCRIPT_SANDBOXING=NO \
             build > "$RUNNER_TEMP/build.log" 2>&1 || {
               grep -E 'error:|fatal error:|BUILD FAILED' "$RUNNER_TEMP/build.log" | tail -100 || true
