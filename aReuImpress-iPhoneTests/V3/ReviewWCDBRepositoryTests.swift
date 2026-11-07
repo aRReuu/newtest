@@ -3681,7 +3681,8 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let old = try XCTUnwrap(cards.first(where: { $0.question == "Verify the claim?" }))
         let oldContent = try await repo.content(for: old.cardID)
         XCTAssertEqual(oldContent?.answerText, "Check the evidence.")
-        XCTAssertTrue(try await repo.reviewHistory(for: old.cardID).isEmpty,
+        let oldReviewHistory = try await repo.reviewHistory(for: old.cardID)
+        XCTAssertTrue(oldReviewHistory.isEmpty,
             "Aggregate legacy review counts cannot be fabricated as ReviewEvents")
         let retiredType = try XCTUnwrap(cards.first(where: {
             $0.question.contains("旧版无文字卡片")
