@@ -300,10 +300,16 @@ class ImpressNoteListTableViewController: ImBaseViewController
                                        image: UIImage(systemName: "xmark.shield")) { [weak self] _ in
             self?.confirmVaultDisconnect()
         }
+        let recoveredLocal = UIAction(title: V3L("旧版笔记（本机·只读）"),
+            image: UIImage(systemName: "archivebox")) { [weak self] _ in
+                self?.navigationController?.pushViewController(
+                    ImpressV3RecoveredNotesViewController(), animated: true)
+            }
         let vaultItem = UIBarButtonItem(image: UIImage(systemName: "folder"),
                                          style: .plain, target: nil, action: nil)
         vaultItem.menu = UIMenu(title: V3L("Vault · 只读"), children: [
-            expandFolders, collapseFolders, connectVault, inspectSaved, disconnectVault
+            expandFolders, collapseFolders, connectVault, inspectSaved, disconnectVault,
+            recoveredLocal
         ])
         vaultItem.accessibilityLabel = V3L("Vault · 只读")
         vaultItem.tintColor = ImpressV3Appearance.navigationActionInk
@@ -860,5 +866,84 @@ extension ImpressNoteListTableViewController
                 }
             }
             .store(in: &cancellables)
+    }
+}
+
+
+// MARK: - Read-only V3 archive of notes from the pre-V3 local WCDB database.
+// Never writes into the user-selected Obsidian Vault or the old database.
+@MainActor
+final class ImpressV3RecoveredNotesViewController: UITableViewController {
+    private var recovered: [WCDBV3RecoveredNote] = []
+
+    init() { super.init(style: .insetGrouped) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) unsupported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = V3L("旧版笔记")
+        navigationItem.largeTitleDisplayMode = .never
+        tableView.backgroundColor = ImpressV3Appearance.page
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let repository = try ImpressV3ReviewEnvironment.repository()
+                recovered = try await repository.recoveredLegacyNotes()
+                tableView.reloadData()
+                if recovered.isEmpty {
+                    navigationItem.prompt = V3L("没有已恢复的旧版笔记")
+                }
+            } catch {
+                let alert = UIAlertController(title: V3L("无法读取旧版笔记"),
+                    message: error.localizedDescription, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: V3L("确定"), style: .default))
+                present(alert, animated: true)
+            }
+        }
+    }
+
+    override func tableView(_ tableView: UITableView,
+                            numberOfRowsInSection section: Int) -> Int {
+        recovered.count
+    }
+
+    override func tableView(_ tableView: UITableView,
+                            cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "legacyNote")
+            ?? UITableViewCell(style: .subtitle, reuseIdentifier: "legacyNote")
+        let note = recovered[indexPath.row]
+        var content = UIListContentConfiguration.subtitleCell()
+        content.text = note.title
+        content.secondaryText = note.folder
+        cell.contentConfiguration = content
+        cell.accessoryType = .disclosureIndicator
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView,
+                            didSelectRowAt indexPath: IndexPath) {
+        guard recovered.indices.contains(indexPath.row) else { return }
+        tableView.deselectRow(at: indexPath, animated: true)
+        let note = recovered[indexPath.row]
+        let viewer = UIViewController()
+        viewer.title = note.title
+        viewer.view.backgroundColor = ImpressV3Appearance.page
+        let editor = UITextView()
+        editor.isEditable = false
+        editor.isSelectable = true
+        editor.alwaysBounceVertical = true
+        editor.font = UIFont.preferredFont(forTextStyle: .body)
+        editor.adjustsFontForContentSizeCategory = true
+        editor.text = note.markdown
+        editor.backgroundColor = ImpressV3Appearance.page
+        editor.translatesAutoresizingMaskIntoConstraints = false
+        viewer.view.addSubview(editor)
+        NSLayoutConstraint.activate([
+            editor.topAnchor.constraint(equalTo: viewer.view.safeAreaLayoutGuide.topAnchor),
+            editor.leadingAnchor.constraint(equalTo: viewer.view.safeAreaLayoutGuide.leadingAnchor),
+            editor.trailingAnchor.constraint(equalTo: viewer.view.safeAreaLayoutGuide.trailingAnchor),
+            editor.bottomAnchor.constraint(equalTo: viewer.view.safeAreaLayoutGuide.bottomAnchor)
+        ])
+        navigationController?.pushViewController(viewer, animated: true)
     }
 }

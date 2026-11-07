@@ -83,8 +83,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate
             showDatabaseUnavailable()
             return
         }
-        // Open only V3; the abandoned impressdata.db is not migrated,
-        // opened, cleared or recreated as part of the live startup path.
+        // Open V3 as the only live source. On existing installations, its
+        // bootstrap imports the old ImpressDB file read-only and transactionally;
+        // no old tables are recreated, dropped or modified here.
         do { _ = try ImpressV3ReviewEnvironment.repository() }
         catch { showDatabaseUnavailable(); return }
         initRootVC()

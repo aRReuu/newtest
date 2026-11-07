@@ -7,6 +7,8 @@
 //
 
 import Foundation
+import CryptoKit
+import FSRS
 import WCDBSwift
 import ImpressReviewCore
 
@@ -99,6 +101,73 @@ private struct WCDBV3CardRow: TableCodable {
             ]
         }
     }
+}
+
+
+private struct WCDBV3LegacyNoteRow: TableCodable {
+    var legacyID: Int?
+    var title: String?
+    var markdown: String?
+    var folder: String?
+    var createdAt: Date?
+    var modifiedAt: Date?
+
+    enum CodingKeys: String, CodingTableKey {
+        typealias Root = WCDBV3LegacyNoteRow
+        static let objectRelationalMapping = TableBinding(CodingKeys.self)
+        case legacyID = "legacy_id"
+        case title, markdown, folder
+        case createdAt = "created_at"
+        case modifiedAt = "modified_at"
+        static var columnConstraintBindings: [CodingKeys: ColumnConstraintBinding]? {
+            [.legacyID: ColumnConstraintBinding(isPrimary: true, isNotNull: true)]
+        }
+    }
+}
+
+/// The original legacy scheduling numbers and card-to-note relation stay
+/// inspectable even if current FSRS-6 needs a different canonical state.
+private struct WCDBV3LegacyCardOriginRow: TableCodable {
+    var legacyID: Int?
+    var cardID: String?
+    var metadataJSON: Data?
+    enum CodingKeys: String, CodingTableKey {
+        typealias Root = WCDBV3LegacyCardOriginRow
+        static let objectRelationalMapping = TableBinding(CodingKeys.self)
+        case legacyID = "legacy_id"
+        case cardID = "card_id"
+        case metadataJSON = "metadata_json"
+        static var columnConstraintBindings: [CodingKeys: ColumnConstraintBinding]? {
+            [.legacyID: ColumnConstraintBinding(isPrimary: true, isNotNull: true)]
+        }
+    }
+}
+
+/// A durable database marker, not UserDefaults: a user-requested older
+/// backup restore replays the marker and imported rows together.
+private struct WCDBV3LegacyMigrationRow: TableCodable {
+    var sourceKey: String?
+    var completedAt: Date?
+    var cards: Int?
+    var notes: Int?
+    enum CodingKeys: String, CodingTableKey {
+        typealias Root = WCDBV3LegacyMigrationRow
+        static let objectRelationalMapping = TableBinding(CodingKeys.self)
+        case sourceKey = "source_key"
+        case completedAt = "completed_at"
+        case cards, notes
+        static var columnConstraintBindings: [CodingKeys: ColumnConstraintBinding]? {
+            [.sourceKey: ColumnConstraintBinding(isPrimary: true, isNotNull: true)]
+        }
+    }
+}
+
+public struct WCDBV3RecoveredNote: Sendable {
+    public let legacyID: Int
+    public let title: String
+    public let markdown: String
+    public let folder: String?
+    public let createdAt: Date?
 }
 
 /// Immutable content snapshots are separate from ReviewEvent/FSRS scheduling.
@@ -467,6 +536,9 @@ public actor ReviewWCDBRepository: ReviewRepository {
     private static let contentVersionsTable = "impress_v3_content_version"
     private static let chatSessionsTable = "impress_v3_chat_session"
     private static let schema = 1
+    private static let legacyNotesTable = "impress_v3_legacy_note"
+    private static let legacyCardOriginsTable = "impress_v3_legacy_card_origin"
+    private static let legacyMigrationTable = "impress_v3_legacy_migration"
 
     private let database: Database
     private let calculator: any WCDBReviewCalculating
@@ -492,7 +564,18 @@ public actor ReviewWCDBRepository: ReviewRepository {
             try db.create(table: Self.eventsTable, of: WCDBV3EventRow.self)
             try db.create(table: Self.contentVersionsTable, of: WCDBV3ContentVersionRow.self)
             try db.create(table: Self.chatSessionsTable, of: WCDBV3ChatSessionRow.self)
+            try db.create(table: Self.legacyNotesTable, of: WCDBV3LegacyNoteRow.self)
+            try db.create(table: Self.legacyCardOriginsTable, of: WCDBV3LegacyCardOriginRow.self)
+            try db.create(table: Self.legacyMigrationTable, of: WCDBV3LegacyMigrationRow.self)
         })
+        do {
+            try Self.importLegacyIfPresent(on: db, path: databasePath)
+        } catch {
+            // A malformed legacy source must never make the current V3 store
+            // inaccessible. The old file is untouched and migration can retry.
+            UserDefaults.standard.set("旧版数据尚未全部恢复：" + error.localizedDescription,
+                forKey: "ImpressLegacyRecoveryError")
+        }
         database = db
         self.calculator = calculator
         self.algorithmIdentifier = algorithmIdentifier
@@ -560,6 +643,341 @@ public actor ReviewWCDBRepository: ReviewRepository {
         } catch {
             _ = sqlite3_exec(db, "ROLLBACK;", nil, nil, nil)
             throw error
+        }
+    }
+
+
+    private struct LegacyCard {
+        var id: Int
+        var noteID: Int?
+        var question: String
+        var answer: String?
+        var cardType: Int
+        var choices: String?
+        var correctIndices: String?
+        var imageData: Data?
+        var createdAt: Date
+        var lastReview: Date?
+        var due: Date?
+        var state: Int
+        var difficulty: Double
+        var stability: Double
+        var reviewCount: Int
+        var lapseCount: Int
+        var relearningStep: Int
+        var chatLink: String?
+        var chatSessionID: Int?
+    }
+
+    private struct LegacyNote {
+        var id: Int
+        var title: String
+        var markdown: String
+        var folder: String?
+        var createdAt: Date?
+        var modifiedAt: Date?
+    }
+
+    private struct LegacyScheduleMetadata: Codable {
+        let sourceID: Int
+        let sourceNoteID: Int?
+        let oldState: Int
+        let oldDue: Date?
+        let oldLastReview: Date?
+        let difficulty: Double
+        let stability: Double
+        let reviewCount: Int
+        let lapseCount: Int
+        let relearningStep: Int
+        let chatLink: String?
+        let chatSessionID: Int?
+    }
+
+    /// This reader never opens the old WCDB handle with CREATE or READWRITE.
+    /// WCDB's Date columns in the old database are seconds since Unix epoch.
+    private struct LegacyColumns {
+        let statement: OpaquePointer
+        let fields: [String: Int32]
+        init(_ statement: OpaquePointer) {
+            self.statement = statement
+            var fields: [String: Int32] = [:]
+            for index in 0..<sqlite3_column_count(statement) {
+                if let column = sqlite3_column_name(statement, index) {
+                    fields[String(cString: column).lowercased()] = index
+                }
+            }
+            self.fields = fields
+        }
+        private func index(_ key: String) -> Int32? {
+            guard let value = fields[key.lowercased()],
+                  sqlite3_column_type(statement, value) != SQLITE_NULL else { return nil }
+            return value
+        }
+        func integer(_ name: String) -> Int? {
+            guard let at = index(name) else { return nil }
+            return Int(sqlite3_column_int64(statement, at))
+        }
+        func real(_ name: String) -> Double? {
+            guard let at = index(name) else { return nil }
+            let value = sqlite3_column_double(statement, at)
+            return value.isFinite ? value : nil
+        }
+        func date(_ name: String) -> Date? {
+            guard let value = real(name) else { return nil }
+            return Date(timeIntervalSince1970: value)
+        }
+        func text(_ name: String) -> String? {
+            guard let at = index(name),
+                  let bytes = sqlite3_column_text(statement, at) else { return nil }
+            return String(cString: UnsafeRawPointer(bytes)
+                .assumingMemoryBound(to: CChar.self))
+        }
+        func blob(_ name: String) -> Data? {
+            guard let at = index(name) else { return nil }
+            let length = Int(sqlite3_column_bytes(statement, at))
+            guard length > 0, let ptr = sqlite3_column_blob(statement, at) else { return nil }
+            return Data(bytes: ptr, count: length)
+        }
+    }
+
+    private static func readLegacyRows<T>(
+        connection: OpaquePointer, table: String,
+        make: (LegacyColumns) throws -> T) throws -> [T] {
+        // Table names come only from the two fixed legacy schema contracts.
+        guard table == "impress_card" || table == "impress_notes" else {
+            throw ReviewWCDBError.corruptRecord
+        }
+        var exists: OpaquePointer?
+        let lookup = "SELECT name FROM sqlite_master WHERE type='table' AND name='" +
+            table + "' LIMIT 1;"
+        guard sqlite3_prepare_v2(connection, lookup, -1, &exists, nil) == SQLITE_OK,
+              let probe = exists else {
+            if let exists { sqlite3_finalize(exists) }
+            throw ReviewWCDBError.corruptRecord
+        }
+        let tableStatus = sqlite3_step(probe)
+        sqlite3_finalize(probe)
+        if tableStatus == SQLITE_DONE { return [] }
+        guard tableStatus == SQLITE_ROW else { throw ReviewWCDBError.corruptRecord }
+
+        var statement: OpaquePointer?
+        let sql = "SELECT * FROM " + table + " ORDER BY id;"
+        guard sqlite3_prepare_v2(connection, sql, -1, &statement, nil) == SQLITE_OK,
+              let query = statement else {
+            if let statement { sqlite3_finalize(statement) }
+            throw ReviewWCDBError.corruptRecord
+        }
+        defer { sqlite3_finalize(query) }
+        let columns = LegacyColumns(query)
+        var rows: [T] = []
+        var status = sqlite3_step(query)
+        while status == SQLITE_ROW {
+            guard rows.count < 500_000 else { throw ReviewWCDBError.corruptRecord }
+            rows.append(try make(columns))
+            status = sqlite3_step(query)
+        }
+        guard status == SQLITE_DONE else { throw ReviewWCDBError.corruptRecord }
+        return rows
+    }
+
+    private static func readLegacyDatabase(at url: URL) throws
+        -> (cards: [LegacyCard], notes: [LegacyNote]) {
+        var connection: OpaquePointer?
+        let opened = url.path.withCString {
+            sqlite3_open_v2($0, &connection, SQLITE_OPEN_READONLY, nil)
+        }
+        guard opened == SQLITE_OK, let db = connection else {
+            if let connection { sqlite3_close(connection) }
+            throw ReviewWCDBError.corruptRecord
+        }
+        defer { sqlite3_close(db) }
+        let cards = try readLegacyRows(connection: db, table: "impress_card") { row in
+            guard let id = row.integer("id"), id > 0,
+                  let question = row.text("question"), !question.trimmingCharacters(
+                    in: .whitespacesAndNewlines).isEmpty,
+                  let type = row.integer("card_type") ?? Optional(0),
+                  [0, 2, 3].contains(type) else {
+                throw ReviewWCDBError.corruptRecord
+            }
+            return LegacyCard(id: id, noteID: row.integer("note_id"),
+                question: question, answer: row.text("answer"), cardType: type,
+                choices: row.text("choices"),
+                correctIndices: row.text("correct_answer_indices"),
+                imageData: row.blob("image_data"),
+                createdAt: row.date("create_time") ?? Date(),
+                lastReview: row.date("last_review_date"),
+                due: row.date("due_date"), state: row.integer("state") ?? 0,
+                difficulty: row.real("difficulty") ?? 0,
+                stability: row.real("stability") ?? 0,
+                reviewCount: row.integer("review_count") ?? 0,
+                lapseCount: row.integer("lapse_count") ?? 0,
+                relearningStep: row.integer("relearning_step") ?? 0,
+                chatLink: row.text("chat_link"),
+                chatSessionID: row.integer("chat_session_id"))
+        }
+        let notes = try readLegacyRows(connection: db, table: "impress_notes") { row in
+            guard let id = row.integer("id"), id > 0 else {
+                throw ReviewWCDBError.corruptRecord
+            }
+            return LegacyNote(id: id,
+                title: row.text("mainTitle") ?? "旧版笔记 #\\(id)",
+                markdown: row.text("markdownText") ?? "",
+                folder: row.text("directory_path"),
+                createdAt: row.date("createTime"),
+                modifiedAt: row.date("modify_date"))
+        }
+        return (cards, notes)
+    }
+
+    private static func stableLegacyUUID(_ legacyID: Int) -> UUID {
+        var bytes = Array(SHA256.hash(data:
+            Data("Impress-legacy-card:impressdata.db:\\(legacyID)".utf8)).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x50
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+
+    /// All source reads finish before one destination transaction begins.
+    /// A failure never half-imports a card collection or a notes collection.
+    private static func importLegacyIfPresent(on db: Database, path: String) throws {
+        let documents = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask)[0]
+        let expected = documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite")
+        guard URL(fileURLWithPath: path).standardizedFileURL ==
+                expected.standardizedFileURL else { return } // DEBUG fixtures
+        let legacy = documents.appendingPathComponent("ImpressDB/impressdata.db")
+        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
+        let sourceKey = "impressdata.db/v1"
+        let marker: WCDBV3LegacyMigrationRow? = try db.getObject(
+            fromTable: legacyMigrationTable,
+            where: WCDBV3LegacyMigrationRow.Properties.sourceKey == sourceKey)
+        if marker != nil { return }
+        let original = try readLegacyDatabase(at: legacy)
+        let now = Date()
+        let transaction = try db.getTransaction()
+        try transaction.run(transaction: {
+            for originalCard in original.cards {
+                let cardID = stableLegacyUUID(originalCard.id)
+                let cardKey = cardID.uuidString
+                let duplicate: WCDBV3CardRow? = try transaction.getObject(
+                    fromTable: cardsTable,
+                    where: WCDBV3CardRow.Properties.cardID == cardKey)
+                let priorOrigin: WCDBV3LegacyCardOriginRow? = try transaction.getObject(
+                    fromTable: legacyCardOriginsTable,
+                    where: WCDBV3LegacyCardOriginRow.Properties.legacyID ==
+                        originalCard.id)
+                if duplicate != nil || priorOrigin != nil { continue }
+                let status: FSRS.CardState
+                switch originalCard.state {
+                case 1: status = .learning
+                case 2: status = .review
+                case 3: status = .relearning
+                default: status = .new
+                }
+                // Retain the old scheduling state where representable. No
+                // fabricated review events are created from aggregate counters.
+                let lastReview = status == .new ? nil : originalCard.lastReview
+                let fsrs = FSRS.Card(
+                    due: originalCard.due ?? now,
+                    stability: max(0, originalCard.stability),
+                    difficulty: max(0, originalCard.difficulty),
+                    elapsedDays: max(0, lastReview.map {
+                        now.timeIntervalSince($0) / 86_400
+                    } ?? 0),
+                    scheduledDays: max(0, lastReview.map {
+                        (originalCard.due ?? now).timeIntervalSince($0) / 86_400
+                    } ?? 0),
+                    learningSteps: max(0, originalCard.relearningStep),
+                    reps: max(0, originalCard.reviewCount),
+                    lapses: max(0, originalCard.lapseCount),
+                    state: status, lastReview: lastReview)
+                var card = WCDBV3CardRow()
+                card.cardID = cardKey
+                card.question = originalCard.question
+                card.answerText = originalCard.answer
+                card.choices = originalCard.choices
+                card.correctIndices = originalCard.correctIndices
+                card.cardType = originalCard.cardType
+                card.imageData = originalCard.imageData
+                card.sourceNotePath = originalCard.noteID.map {
+                    "legacy-note:" + String($0)
+                }
+                card.createdAt = originalCard.createdAt
+                card.updatedAt = now
+                card.revision = 0
+                card.contentRevision = 0
+                card.isSuspended = originalCard.state == 4 ? 1 : 0
+                card.state = status.rawValue
+                card.dueAt = fsrs.due
+                card.lastReviewedAt = fsrs.lastReview
+                card.schedulerPayload = try JSONEncoder().encode(fsrs)
+                card.schemaVersion = schema
+                try transaction.insert(objects: [card], intoTable: cardsTable)
+                let version = try makeContentVersionRow(card,
+                    origin: .restored, recordedAt: now)
+                try transaction.insert(objects: [version],
+                    intoTable: contentVersionsTable)
+                let metadata = LegacyScheduleMetadata(
+                    sourceID: originalCard.id, sourceNoteID: originalCard.noteID,
+                    oldState: originalCard.state, oldDue: originalCard.due,
+                    oldLastReview: originalCard.lastReview,
+                    difficulty: originalCard.difficulty,
+                    stability: originalCard.stability,
+                    reviewCount: originalCard.reviewCount,
+                    lapseCount: originalCard.lapseCount,
+                    relearningStep: originalCard.relearningStep,
+                    chatLink: originalCard.chatLink,
+                    chatSessionID: originalCard.chatSessionID)
+                var provenance = WCDBV3LegacyCardOriginRow()
+                provenance.legacyID = originalCard.id
+                provenance.cardID = cardKey
+                provenance.metadataJSON = try JSONEncoder().encode(metadata)
+                try transaction.insert(objects: [provenance],
+                    intoTable: legacyCardOriginsTable)
+            }
+            for old in original.notes {
+                let duplicate: WCDBV3LegacyNoteRow? = try transaction.getObject(
+                    fromTable: legacyNotesTable,
+                    where: WCDBV3LegacyNoteRow.Properties.legacyID == old.id)
+                if duplicate != nil { continue }
+                var note = WCDBV3LegacyNoteRow()
+                note.legacyID = old.id
+                note.title = old.title
+                note.markdown = old.markdown
+                note.folder = old.folder
+                note.createdAt = old.createdAt
+                note.modifiedAt = old.modifiedAt
+                try transaction.insert(objects: [note], intoTable: legacyNotesTable)
+            }
+            var completion = WCDBV3LegacyMigrationRow()
+            completion.sourceKey = sourceKey
+            completion.completedAt = now
+            completion.cards = original.cards.count
+            completion.notes = original.notes.count
+            try transaction.insert(objects: [completion],
+                intoTable: legacyMigrationTable)
+        })
+        // Only the verified committed V3 snapshot enters iCloud backup.
+        if !original.cards.isEmpty || !original.notes.isEmpty {
+            ImpressV3BackupCoordinator.markDataChanged()
+        }
+        UserDefaults.standard.removeObject(forKey: "ImpressLegacyRecoveryError")
+    }
+
+    /// Read-only, local presentation of original WCDB notes. Obsidian is never
+    /// modified or treated as the owner of notes imported from another store.
+    public func recoveredLegacyNotes() throws -> [WCDBV3RecoveredNote] {
+        let rows: [WCDBV3LegacyNoteRow] = try database.getObjects(
+            fromTable: Self.legacyNotesTable,
+            orderBy: [WCDBV3LegacyNoteRow.Properties.legacyID.asOrder(by: .ascending)])
+        return try rows.map { row in
+            guard let id = row.legacyID, let title = row.title,
+                  let markdown = row.markdown else { throw ReviewWCDBError.corruptRecord }
+            return WCDBV3RecoveredNote(legacyID: id, title: title,
+                markdown: markdown, folder: row.folder, createdAt: row.createdAt)
         }
     }
 
