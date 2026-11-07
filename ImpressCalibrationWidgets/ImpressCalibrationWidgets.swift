@@ -160,6 +160,21 @@ private struct SharedCartesianChart: View {
     }
 }
 
+
+// iOS 17 added WidgetKit container backgrounds. Keep the same semantic
+// surface on iOS 16.7 without referencing unavailable modifiers at runtime.
+private extension View {
+    @ViewBuilder func impressCompatibleWidgetBackground() -> some View {
+        if #available(iOS 17.0, *) {
+            self.containerBackground(for: .widget) {
+                Color(uiColor: .systemGroupedBackground)
+            }
+        } else {
+            self.background(Color(uiColor: .systemGroupedBackground))
+        }
+    }
+}
+
 private struct CalibrationWidgetView: View {
     @Environment(\.widgetFamily) private var family
     // Relative semantic sizes preserve the original Small/Medium proportions
@@ -214,9 +229,7 @@ private struct CalibrationWidgetView: View {
         }
         .padding(small ? 9 : 13)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            Color(uiColor: .systemGroupedBackground)
-        }
+        .impressCompatibleWidgetBackground()
         .widgetURL(URL(string: "impress://calibration/\(entry.period.rawValue)"))
     }
 
