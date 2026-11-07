@@ -22,13 +22,13 @@
   "retained_localized_source_strings": true,
   "retained_functional_test_fixture_strings": true,
   "english_documentation_note": "Documentation was translated by an offline machine-translation model. Automated language checks do not certify complete semantic fidelity.",
-  "expected_public_file_count": 642,
-  "ci_policy": "Public source safety, isolated JS DOM bridge tests, app route checks, and Swift syntax parse only; no Xcode build, CocoaPods install/update, or release dispatch.",
+  "expected_public_file_count": 644,
+  "ci_policy": "Public source safety, isolated JS DOM tests, iOS 16.7 static contracts, Ubuntu Swift parse and targeted macOS 26 Apple SDK typechecks; no full Xcode app build, CocoaPods installation/update, release dispatch or IPA.",
   "post_mirror_changes": {
     "date": "2026-11-07",
-    "scope": "Direct changes on newtest/main after the original sanitized private-source snapshot: DeepSeek DOM integration, native/web STT, app-wide OCR, note translation, card video capture and cancellation, linked native revision entry, offline tests. Three-tab navigation, shared calibration projection, measured-height Flashcards chart drawer, Widget/notification routing updates, native and XCUITest migration.",
+    "scope": "Direct changes on newtest/main after the original sanitized private-source snapshot: DeepSeek DOM integration, native/web STT, app-wide OCR, note translation, card video capture and cancellation, linked native revision entry, offline tests. Three-tab navigation, shared calibration projection, measured-height Flashcards chart drawer, Widget/notification routing updates, native and XCUITest migration. iOS 16.7 deployment targets, Apple legacy offline STT facade and permissions, version-gated Apple Translation and Widget backgrounds, explicit consented low-version provider translation, three-language copy and isolated Apple SDK availability checks.",
     "private_source_revision_unchanged": true,
-    "validation": "Public safety, offline DeepSeek DOM checks, November feature checks, dedicated calibration drawer static contract and swiftc -frontend -parse (production and changed test files) succeeded. Xcode type-check, signed Simulator execution, XCUITest interaction, physical device and IPA have NOT been run in this public mirror.",
-    "commit_range": "f0b5adf2fa02cc31ac74d37086fe0b87033e4260..2f20ebbf1497ec15e93b0491c5829ec3effb94e4"
+    "validation": "Fast GitHub Action PASS for iOS16.7 floor/privacy/route assertions. Isolated macOS 26 iOS-SDK typechecking PASS for dual STT source, extracted iOS18 translation, iOS17 Widget background and iOS16 UIKit consent reader (run 42333907732). Complete app / Widget linked type-check and signed build, Pods regeneration, real iOS16.7 runtime verification and IPA remain NOT DONE.",
+    "commit_range": "f0b5adf2fa02cc31ac74d37086fe0b87033e4260..a4cc3d9499cbc00eaf2fd66aaeee0c4c0b1a3cb7"
   }
 }
