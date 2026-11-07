@@ -117,7 +117,7 @@ enum ImpressV3DeepSeekDOMBridge {
 
 /// WKWebView控制器单例
 /// 用于显示DeepSeek聊天页面，并提供生成复习卡片的功能
-class ImWebViewController: UIViewController, WKNavigationDelegate {
+class ImWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UIDocumentPickerDelegate {
 
     // MARK: - Singleton
     static let shared = ImWebViewController()
@@ -129,6 +129,8 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
     private var webBottomAboveToolbar: NSLayoutConstraint?
     private var keyboardObservers: [NSObjectProtocol] = []
     private var pendingMarkdownNote: (filename: String, markdown: String)?
+    private var webFilePickerCompletion: (@MainActor @Sendable ([URL]?) -> Void)?
+    private var temporaryAttachmentFolders: [URL] = []
     private let floatingButton = UIButton(type: .custom)
     private var isDragging = false
     private var initialCenter: CGPoint = .zero
@@ -199,6 +201,9 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
     deinit {
         keyboardObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        for folder in temporaryAttachmentFolders {
+            try? FileManager.default.removeItem(at: folder)
+        }
     }
 
     override func viewWillLayoutSubviews() {
@@ -242,6 +247,12 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
         let newWebView = WKWebView(frame: .zero, configuration: configuration)
         newWebView.navigationDelegate = self
+        // iOS 18.4 added a public upload-panel delegate for file inputs.
+        // On iOS 16.7–18.3 keep WebKit's Safari-like file picker untouched.
+        // A plain browser has no source note and uses the system picker.
+        if pendingMarkdownNote != nil {
+            if #available(iOS 18.4, *) { newWebView.uiDelegate = self }
+        }
         newWebView.isOpaque = false
         newWebView.backgroundColor = ImpressV3Appearance.page
         newWebView.scrollView.backgroundColor = ImpressV3Appearance.page
@@ -359,30 +370,118 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
         }
     }
 
-    private func exportMarkdownForWebAttachment() {
-        guard let note = pendingMarkdownNote else { return }
+    /// Build a real file with a human-readable name, not a text description.
+    /// File bytes remain local until the person chooses DeepSeek's attachment
+    /// control. React text injection never implies a successful file upload.
+    private func makeMarkdownAttachmentURL() throws -> URL {
+        guard let note = pendingMarkdownNote else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let leaf = note.filename.split(separator: "/").last.map(String.init) ?? "note.md"
+        let safe = String(leaf.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0) && $0 != "\\"
+        }.prefix(90))
+        let filename = safe.lowercased().hasSuffix(".md") ? safe : safe + ".md"
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ImpressDeepSeekExports", isDirectory: true)
+        let folder = base.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         do {
-            let last = note.filename.split(separator: "/").last.map(String.init) ?? "note.md"
-            let clean = String(last.prefix(90)).replacingOccurrences(of: "\\", with: "_")
-            let filename = clean.lowercased().hasSuffix(".md") ? clean : clean + ".md"
-            let folder = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ImpressDeepSeekExports", isDirectory: true)
-            try FileManager.default.createDirectory(at: folder,
-                withIntermediateDirectories: true)
             let destination = folder.appendingPathComponent(
-                UUID().uuidString + "-" + filename)
+                filename.isEmpty ? "note.md" : filename)
             try Data(note.markdown.utf8).write(to: destination, options: .atomic)
             try FileManager.default.setAttributes([
                 .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
             ], ofItemAtPath: destination.path)
+            temporaryAttachmentFolders.append(folder)
+            return destination
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw error
+        }
+    }
+
+    private func exportMarkdownForWebAttachment() {
+        guard pendingMarkdownNote != nil else { return }
+        do {
+            let destination = try makeMarkdownAttachmentURL()
             let picker = UIDocumentPickerViewController(forExporting: [destination],
                 asCopy: true)
             present(picker, animated: true)
-            // No claim of upload: DeepSeek owns the real attachment button,
-            // accepted file types, and its upload-success confirmation.
         } catch {
             showBridgeError(V3L("无法导出 Markdown 附件：") + error.localizedDescription)
         }
+    }
+
+    private func finishWebFileSelection(_ files: [URL]?) {
+        let completion = webFilePickerCompletion
+        webFilePickerCompletion = nil
+        completion?(files)
+    }
+
+    private func openSystemFilePicker(multiple: Bool) {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.item], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = multiple
+        present(picker, animated: true)
+    }
+
+    /// This route is invoked ONLY by a real tap on the official website's
+    /// file input. WKWebView, not Impress, owns the request and upload state.
+    /// The native client supplies a real file URL after explicit consent.
+    @available(iOS 18.4, *)
+    func webView(_ webView: WKWebView,
+                 runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping @MainActor @Sendable ([URL]?) -> Void) {
+        guard webView === self.webView, trustedDeepSeekPage(), frame.isMainFrame,
+              frame.securityOrigin.protocol == "https",
+              frame.securityOrigin.host == "chat.deepseek.com",
+              pendingMarkdownNote != nil, webFilePickerCompletion == nil else {
+            completionHandler(nil)
+            return
+        }
+        webFilePickerCompletion = completionHandler
+        let menu = UIAlertController(title: V3L("DeepSeek 附件"),
+            message: V3L("文件会交给 DeepSeek 网页处理；是否上传成功、支持的格式与大小以网页结果为准。"),
+            preferredStyle: .actionSheet)
+        menu.addAction(UIAlertAction(title: V3L("选择本次完整 Markdown 笔记"),
+            style: .default) { [weak self] _ in
+            guard let self else { return }
+            do {
+                let url = try self.makeMarkdownAttachmentURL()
+                self.finishWebFileSelection([url])
+            } catch {
+                self.finishWebFileSelection(nil)
+                self.showBridgeError(V3L("未能准备原始 MD 文件：") + error.localizedDescription)
+            }
+        })
+        menu.addAction(UIAlertAction(title: V3L("从文件 App 选择"),
+            style: .default) { [weak self] _ in
+            self?.openSystemFilePicker(multiple: parameters.allowsMultipleSelection)
+        })
+        menu.addAction(UIAlertAction(title: V3L("取消"),
+            style: .cancel) { [weak self] _ in
+            self?.finishWebFileSelection(nil)
+        })
+        if let popover = menu.popoverPresentationController {
+            popover.sourceView = webView
+            popover.sourceRect = CGRect(x: webView.bounds.midX,
+                y: webView.bounds.maxY - 50, width: 1, height: 1)
+        }
+        present(menu, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController,
+                        didPickDocumentsAt urls: [URL]) {
+        guard webFilePickerCompletion != nil else { return }
+        finishWebFileSelection(urls.isEmpty ? nil : urls)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        guard webFilePickerCompletion != nil else { return }
+        finishWebFileSelection(nil)
     }
 
     private func setupNavigationBar() {
