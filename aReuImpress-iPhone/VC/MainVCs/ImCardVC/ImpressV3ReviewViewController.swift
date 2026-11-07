@@ -235,7 +235,13 @@ final class ImpressV3ReviewViewController: UIViewController {
                         bar.convert(bar.bounds, to: window).maxY - statusTop)
                 }
             }
-            guard calibrationDrawerExpandedHeight > 55 else { return }
+            // Landscape may collapse the native large-title height to
+            // less than the minimum size of a meaningful Cartesian plot.
+            // The handle must not become a dead control in that case.
+            guard calibrationDrawerExpandedHeight > 55 else {
+                openCalibrationFromDrawer(calibrationDrawer.selectedPeriod)
+                return
+            }
         }
         calibrationDrawer.setExpanded(expanded)
         calibrationDrawerHeight?.constant = expanded
