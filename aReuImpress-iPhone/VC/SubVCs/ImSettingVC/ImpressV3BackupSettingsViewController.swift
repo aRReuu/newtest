@@ -72,7 +72,9 @@ enum ImpressV3ManualFileExport {
 @MainActor
 final class ImpressV3BackupSettingsViewController: UITableViewController,
                                                     UIDocumentPickerDelegate {
-    private enum PickerPurpose { case cloudFolder, restoreArchive, exportArchive }
+    private enum PickerPurpose {
+        case cloudFolder, restoreArchive, exportArchive, restoreLegacyDatabase
+    }
     private var pendingPurpose: PickerPurpose?
     private var pendingExportArchive: URL?
     private var working = false
@@ -107,7 +109,8 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
     override func numberOfSections(in tableView: UITableView) -> Int { 3 }
     override func tableView(_ tableView: UITableView,
                             numberOfRowsInSection section: Int) -> Int {
-        section == 1 && ImpressV3BackupCoordinator.cloudFolderSelected ? 2 : 1
+        if section == 1 && ImpressV3BackupCoordinator.cloudFolderSelected { return 2 }
+        return section == 2 ? 2 : 1
     }
 
     override func tableView(_ tableView: UITableView,
@@ -128,7 +131,7 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
                 V3L("旧版卡片和旧版笔记恢复后已包含在 V3 ZIP；原始旧数据库保持只读，不纳入备份。") +
                 V3L("不包含外部 Obsidian 原件、API Key 或 Vault 授权。") +
                 V3L("当前 ZIP 未加密，获取文件者可读取其中学习数据。") +
-                (recoveryError.map { "\\n" + $0 } ?? "")
+                (recoveryError.map { "\n" + $0 } ?? "")
         case 1:
             let last = UserDefaults.standard.object(
                 forKey: ImpressV3BackupCoordinator.cloudDateKey) as? Date
@@ -169,10 +172,14 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
             config.text = V3L("断开自动云盘备份")
             config.secondaryText = V3L("只清除本 App 的授权，不删除云盘文件")
             symbol = "xmark.icloud"
-        default:
+        case (2, 0):
             config.text = V3L("从备份恢复")
-            config.secondaryText = V3L("先验证，再确认；不会直接覆盖当前数据库")
+            config.secondaryText = V3L("先验证 ZIP，再确认；不会直接覆盖当前数据库")
             symbol = "arrow.uturn.backward"
+        default:
+            config.text = V3L("导入旧版数据库")
+            config.secondaryText = V3L("从文件 App 选择旧的 impressdata.db，只读迁入卡片与笔记")
+            symbol = "externaldrive.badge.plus"
         }
         config.image = UIImage(systemName: symbol)
         config.imageProperties.tintColor = ImpressV3Appearance.secondaryText
@@ -187,7 +194,8 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
             }
             #endif
         } else if indexPath.section == 2 {
-            cell.accessibilityIdentifier = "impress.backup.restore"
+            cell.accessibilityIdentifier = indexPath.row == 0
+                ? "impress.backup.restore" : "impress.backup.restore-legacy"
         }
         cell.isUserInteractionEnabled = !working
         ImpressV3Appearance.styleGroupedCell(cell)
@@ -204,7 +212,9 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
         case (1, 1):
             ImpressV3BackupCoordinator.disconnectCloudFolder()
             tableView.reloadData()
-        default: chooseRestoreArchive()
+        case (2, 0): chooseRestoreArchive()
+        case (2, 1): chooseLegacyDatabase()
+        default: return
         }
     }
 
@@ -396,6 +406,18 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
         present(picker, animated: true)
     }
 
+    private func chooseLegacyDatabase() {
+        working = true
+        tableView.reloadData()
+        pendingPurpose = .restoreLegacyDatabase
+        let sourceType = UTType(filenameExtension: "db") ?? .data
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [sourceType, .data], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
     private func chooseRestoreArchive() {
         // Busy starts at the picker, not after the archive has been selected.
         // Otherwise multiple pending recoveries can be queued before consent.
@@ -410,7 +432,8 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        if pendingPurpose == .restoreArchive || pendingPurpose == .exportArchive {
+        if pendingPurpose == .restoreArchive || pendingPurpose == .exportArchive ||
+           pendingPurpose == .restoreLegacyDatabase {
             pendingExportArchive = nil
             working = false
             #if DEBUG
@@ -426,7 +449,8 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
         defer { pendingPurpose = nil }
         guard let url = urls.first, let purpose = pendingPurpose else {
             if pendingPurpose == .restoreArchive ||
-               pendingPurpose == .exportArchive {
+               pendingPurpose == .exportArchive ||
+               pendingPurpose == .restoreLegacyDatabase {
                 pendingExportArchive = nil
                 working = false
                 tableView.reloadData()
@@ -434,6 +458,39 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
             return
         }
         switch purpose {
+        case .restoreLegacyDatabase:
+            let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "ImpressLegacyImport-" + UUID().uuidString + ".db")
+            do {
+                // The user-selected File Provider object is copied; never open
+                // or mutate the provider's source database in-place.
+                try FileManager.default.copyItem(at: url, to: temporary)
+                Task { [weak self] in
+                    guard let self else {
+                        try? FileManager.default.removeItem(at: temporary)
+                        return
+                    }
+                    defer {
+                        try? FileManager.default.removeItem(at: temporary)
+                        working = false
+                        tableView.reloadData()
+                    }
+                    do {
+                        let repository = try ImpressV3ReviewEnvironment.repository()
+                        try await repository.importApprovedLegacyDatabase(at: temporary)
+                        let alert = UIAlertController(title: V3L("旧版数据导入完成"),
+                            message: V3L("已检查旧数据库并执行受控迁移。原始文件不变；请返回闪卡刷新复习队列。若已导入过同一来源则不会重复添加。"),
+                            preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: V3L("确定"), style: .default))
+                        present(alert, animated: true)
+                    } catch { report(error) }
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: temporary)
+                working = false
+                tableView.reloadData()
+                report(error)
+            }
         case .exportArchive:
             guard let approvedSource = pendingExportArchive else {
                 working = false

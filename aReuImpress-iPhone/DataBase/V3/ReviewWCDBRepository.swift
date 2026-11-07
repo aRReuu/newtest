@@ -842,13 +842,15 @@ public actor ReviewWCDBRepository: ReviewRepository {
 
     /// All source reads finish before one destination transaction begins.
     /// A failure never half-imports a card collection or a notes collection.
-    private static func importLegacyIfPresent(on db: Database, path: String) throws {
+    private static func importLegacyIfPresent(on db: Database, path: String,
+                                              selectedSource: URL? = nil) throws {
         let documents = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask)[0]
         let expected = documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite")
         guard URL(fileURLWithPath: path).standardizedFileURL ==
                 expected.standardizedFileURL else { return } // DEBUG fixtures
-        let legacy = documents.appendingPathComponent("ImpressDB/impressdata.db")
+        let legacy = selectedSource ?? documents.appendingPathComponent(
+            "ImpressDB/impressdata.db")
         guard FileManager.default.fileExists(atPath: legacy.path) else { return }
         let sourceKey = "impressdata.db/v1"
         let marker: WCDBV3LegacyMigrationRow? = try db.getObject(
@@ -972,6 +974,23 @@ public actor ReviewWCDBRepository: ReviewRepository {
             ImpressV3BackupCoordinator.markDataChanged()
         }
         UserDefaults.standard.removeObject(forKey: "ImpressLegacyRecoveryError")
+    }
+
+    /// An explicitly selected, provider-copied old SQLite database may be
+    /// imported when installing a new IPA moved the application sandbox.
+    /// No source byte is modified, and this action cannot import arbitrary
+    /// unreadable formats or merge a second legacy card ID namespace.
+    public func importApprovedLegacyDatabase(at source: URL) throws {
+        guard source.isFileURL,
+              source.pathExtension.lowercased() == "db",
+              FileManager.default.fileExists(atPath: source.path) else {
+            throw ReviewWCDBError.corruptRecord
+        }
+        let documents = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask)[0]
+        try Self.importLegacyIfPresent(on: database,
+            path: documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite").path,
+            selectedSource: source)
     }
 
     /// Read-only, local presentation of original WCDB notes. Obsidian is never
