@@ -527,7 +527,8 @@ enum ImpressV3Appearance {
     /// Primary type selection is prominent; single/multiple choice stays quiet.
     /// This method is the sole owner of segment color, font and corner style.
     static func styleSegmentedControl(_ control: UISegmentedControl,
-                                      prominent: Bool) {
+                                      prominent: Bool,
+                                      minimumHeight: CGFloat? = Metrics.segmentHeight) {
         control.backgroundColor = segmentTrack
         control.selectedSegmentTintColor = prominent ? reviewPrimarySurface : secondarySegmentSelection
         control.apportionsSegmentWidthsByContent = false
@@ -542,8 +543,10 @@ enum ImpressV3Appearance {
         control.layer.cornerRadius = Radius.segment
         // Keep Apple's intrinsic segment geometry and pressed-state behavior.
         // An outer hard border would reintroduce the heavy boxed-button look.
-        control.heightAnchor.constraint(
-            greaterThanOrEqualToConstant: Metrics.segmentHeight).isActive = true
+        if let minimumHeight {
+            control.heightAnchor.constraint(
+                greaterThanOrEqualToConstant: minimumHeight).isActive = true
+        }
     }
 
     /// Fill the available width on an iPhone, but stop before segments turn
