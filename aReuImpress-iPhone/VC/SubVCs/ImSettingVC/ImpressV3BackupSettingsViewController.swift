@@ -122,14 +122,19 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
             let timestamp = UserDefaults.standard.object(
                 forKey: ImpressV3BackupCoordinator.localDateKey) as? Date
             let last = timestamp.map { Self.dateFormatter.string(from: $0) } ?? V3L("尚无成功备份")
+            let recoveryError = UserDefaults.standard.string(
+                forKey: "ImpressLegacyRecoveryError")
             return String(format: V3L("V3 数据变化后自动生成一致性快照。最近成功：%@。"), last) +
-                V3L("不包含旧数据库、外部 Obsidian 原件、API Key 或 Vault 授权。") +
-                V3L("当前 ZIP 未加密，获取文件者可读取其中学习数据。")
+                V3L("旧版卡片和旧版笔记恢复后已包含在 V3 ZIP；原始旧数据库保持只读，不纳入备份。") +
+                V3L("不包含外部 Obsidian 原件、API Key 或 Vault 授权。") +
+                V3L("当前 ZIP 未加密，获取文件者可读取其中学习数据。") +
+                (recoveryError.map { "\\n" + $0 } ?? "")
         case 1:
             let last = UserDefaults.standard.object(
                 forKey: ImpressV3BackupCoordinator.cloudDateKey) as? Date
             let copied = last.map { Self.dateFormatter.string(from: $0) } ?? V3L("尚未写入")
             return String(format: V3L("首次手动授权文件夹，此后尝试静默复制。最近写入文件提供者：%@。"), copied) +
+                V3L("同一授权文件夹固定替换 ImpressV3-latest.zip，不再生成新的历史命名云端副本。") +
                 V3L("副本为未加密 ZIP，请只授权个人可信目录。系统 iCloud 上传可能延迟；") +
                 V3L("此状态不代表云端服务器已完成同步。")
         default:
