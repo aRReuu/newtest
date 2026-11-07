@@ -3756,6 +3756,7 @@ private final class ImpressLegacyNoteTranslationReader: UIViewController {
     private let status = UILabel()
     private var translated: String?
     private var translationTask: Task<Void, Never>?
+    private var consentGeneration = 0
 
     init(sourceTitle: String, original: String, identity: ImVaultFileIdentity,
          sourceDigest: String) {
@@ -3821,6 +3822,7 @@ private final class ImpressLegacyNoteTranslationReader: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if isMovingFromParent || isBeingDismissed {
+            consentGeneration &+= 1
             translationTask?.cancel()
         }
     }
@@ -3851,6 +3853,10 @@ private final class ImpressLegacyNoteTranslationReader: UIViewController {
             return
         }
         let chunks = Self.chunks(original)
+        guard chunks.count <= 48 else {
+            showProblem(V3L("笔记需要发送过多翻译请求；请先选取较小的章节。"))
+            return
+        }
         let confirmation = UIAlertController(
             title: V3L("授权将当前笔记发送给 AI 翻译？"),
             message: sourceTitle + "\n" + String(original.utf8.count) + " UTF-8 bytes\n" +
@@ -3868,8 +3874,10 @@ private final class ImpressLegacyNoteTranslationReader: UIViewController {
 
     private func verifySourceAndStart(route: ImpressAIResolvedRoute, chunks: [String]) {
         // Revalidate immediately BEFORE sending, not only when reader opened.
+        // An outstanding source read cannot authorize a request after closing.
+        let expectedGeneration = consentGeneration
         ImVaultReadSync.shared.read(identity) { [weak self] result in
-            guard let self else { return }
+            guard let self, self.consentGeneration == expectedGeneration else { return }
             switch result {
             case .failure(let error):
                 self.showProblem(error.localizedDescription)
@@ -3937,21 +3945,40 @@ private final class ImpressLegacyNoteTranslationReader: UIViewController {
     }
 
     private static func chunks(_ source: String) -> [String] {
-        var parts: [String] = []
-        var item = ""
+        // Prefer intact Markdown lines and split a single oversized line only
+        // when required by the provider's bounded input request size.
+        let limit = 1_800
+        var chunks: [String] = []
+        var buffer = ""
         var bytes = 0
-        for character in source {
-            let size = String(character).utf8.count
-            if bytes + size > 1_800 && !item.isEmpty {
-                parts.append(item)
-                item = ""
-                bytes = 0
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
+        for (index, line) in lines.enumerated() {
+            let entire = String(line) + (index == lines.count - 1 ? "" : "\n")
+            if entire.utf8.count <= limit {
+                if bytes + entire.utf8.count > limit && !buffer.isEmpty {
+                    chunks.append(buffer)
+                    buffer = ""
+                    bytes = 0
+                }
+                buffer += entire
+                bytes += entire.utf8.count
+                continue
             }
-            item.append(character)
-            bytes += size
+            if !buffer.isEmpty { chunks.append(buffer); buffer = ""; bytes = 0 }
+            for character in entire {
+                let next = String(character)
+                let size = next.utf8.count
+                if bytes + size > limit && !buffer.isEmpty {
+                    chunks.append(buffer)
+                    buffer = ""
+                    bytes = 0
+                }
+                buffer += next
+                bytes += size
+            }
         }
-        if !item.isEmpty { parts.append(item) }
-        return parts
+        if !buffer.isEmpty { chunks.append(buffer) }
+        return chunks
     }
 
     private func showProblem(_ message: String) {
