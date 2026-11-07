@@ -2,7 +2,7 @@
 
 ## 2026-11-07 — Three-tab navigation and Flashcards calibration pull-down
 
-**Requirement status: recorded; implementation pending.** This user's newer navigation request overrides the historical four-tab behavior below, but does not change existing calibration scoring, reminder, Widget, backup, or data-safety contracts.
+**Implementation status (2026-11-07): production source implemented and localized, lightweight CI syntax/static checks PASS; iOS Xcode type-check, real Simulator interactions, device visual QA and IPA are NOT yet accepted.** This user's newer navigation request overrides the historical four-tab behavior below, but does not change existing calibration scoring, reminder, Widget, backup, or data-safety contracts.
 
 1. **Tabs:** show only Flashcards, Notes, Settings (in order). Remove Calibration as a primary tab. Settings already has Learning Rhythm > Daily Calibration; preserve its existing navigation to `ImpressCalibrationViewController`, not a duplicate destination.
 2. **Flashcards drawer:** provide a compact Cartesian calibration preview immediately below the system-owned large-title header. Pull down from its exposed handle to reveal, swipe up within the drawer to collapse, and tap its plot (outside the date-range selector) to open the existing full Calibration controller. Expanded height equals the *measured distance from the system status bar's top to the bottom of the native large-title header*, used as a height reference only. Never cover the system status bar, large title or native navigation controls. Size dynamically instead of assuming a fixed iPhone size.
@@ -11,6 +11,9 @@
 5. **Interaction:** hide or collapse the drawer without consuming SwipeCardStack left/up/right/down review scoring events. Attach pan only to its handle/chart region; animate Auto Layout constraints rather than recreating review cards, FSRS sessions, or their state. Provide accessible expand, collapse and open actions and preserve the review session on return.
 6. **Widget deep links:** `SceneDelegate.openCalibrationWidgetLink` currently looks for Calibration as a root Tab. Update `impress://calibration/{week|month|year}` to enter the existing Calibration screen from the Settings navigation path and preserve `selectWidgetPeriod`. Do not break the three existing Widget periods when changing the drawer's labels.
 7. **Acceptance:** verify exact three tabs and all languages, deep links, drawer height/safe area across devices and Dynamic Type, VoiceOver, chart data parity, empty-data rendering, Settings navigation, and absence of unintended swipe ratings. Use minimal targeted tests. Do not claim iOS build/device/IPA PASS from a documentation-only commit.
+
+**Implementation evidence (newtest/main):** `ImTabBarViewController` owns exactly three roots; existing Settings > Daily Calibration pushes the unchanged full controller; `ImpressV3ReviewViewController` hosts an expandable, swipe-isolated `ImpressV3CalibrationDrawerView` below the system large-title header. `ImpressCalibrationChartProjector` and `ImpressCalibrationTrendChart` are used by BOTH the full view and preview. Widget links and calibration notification navigation now resolve Settings by controller type. The original 7/30/12 periods and missing-score gaps are unchanged; new native and XCUITest cases cover routes, gestures, selected period and empty-data projections. On extremely short landscape headers the drawer handle opens the full Calibration screen rather than offering a nonfunctional plot. A development-source syntax/static PASS must never be described as a compiled app or live visual QA PASS.
+
 
 ---
 
