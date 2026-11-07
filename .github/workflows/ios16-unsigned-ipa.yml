@@ -167,6 +167,9 @@ jobs:
           Architecture: $(lipo -archs "$APP/$EXEC")
           Signature: UNSIGNED (must be signed for device installation)
           Offline DiagramReader/MarkdownReader: compiled and included
+          Cloud automatic archive: ImpressV3-latest.zip (fixed name; no date/UUID suffix)
+          Obsidian Markdown: write-enabled only after full diff and explicit per-note approval
+          Obsidian protection: coordinated source-byte CAS, private recovery backup, post-write readback
           Original brand AppIcon and 5 historical ImCard graphics: absent from public source
           Historical ImCard graphics: NEUTRAL QA placeholders only
           Signing entitlements: disabled for side-load compatibility
