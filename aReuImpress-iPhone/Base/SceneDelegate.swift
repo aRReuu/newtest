@@ -112,7 +112,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate
         if let url = URLContexts.first?.url { openCalibrationWidgetLink(url) }
     }
 
-    /// Route by controller identity, not a fixed Tab index or new calibration store.
+    /// A Widget deep link now routes through the Settings tab; Calibration
+    /// is no longer a root tab. Preserve all existing week/month/year links.
     private func openCalibrationWidgetLink(_ url: URL) {
         guard url.scheme == "impress", url.host == "calibration",
               url.query == nil, url.fragment == nil,
@@ -123,14 +124,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate
               let controllers = tabs.viewControllers,
               let index = controllers.firstIndex(where: {
                   ($0 as? UINavigationController)?.viewControllers.first is
-                      ImpressCalibrationViewController
+                      ImpressV3SettingsHubViewController
               }),
-              let nav = controllers[index] as? UINavigationController,
-              let calibration = nav.viewControllers.first as? ImpressCalibrationViewController
+              let nav = controllers[index] as? UINavigationController
         else { return }
         tabs.selectedIndex = index
+        if let calibration = nav.topViewController as? ImpressCalibrationViewController {
+            calibration.selectWidgetPeriod(period)
+            return
+        }
         nav.popToRootViewController(animated: false)
+        let calibration = ImpressCalibrationViewController()
+        calibration.loadViewIfNeeded()
         calibration.selectWidgetPeriod(period)
+        nav.pushViewController(calibration, animated: false)
     }
 
     @available(iOS 13.0, *)
