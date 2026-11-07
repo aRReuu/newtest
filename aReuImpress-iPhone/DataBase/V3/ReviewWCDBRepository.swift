@@ -795,12 +795,12 @@ public actor ReviewWCDBRepository: ReviewRepository {
             guard let id = row.integer("id"), id > 0,
                   let question = row.text("question"), !question.trimmingCharacters(
                     in: .whitespacesAndNewlines).isEmpty,
-                  let type = row.integer("card_type") ?? Optional(0),
-                  [0, 2, 3].contains(type) else {
+                  [0, 2, 3].contains(row.integer("card_type") ?? 0) else {
                 throw ReviewWCDBError.corruptRecord
             }
             return LegacyCard(id: id, noteID: row.integer("note_id"),
-                question: question, answer: row.text("answer"), cardType: type,
+                question: question, answer: row.text("answer"),
+                cardType: row.integer("card_type") ?? 0,
                 choices: row.text("choices"),
                 correctIndices: row.text("correct_answer_indices"),
                 imageData: row.blob("image_data"),
@@ -820,7 +820,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
                 throw ReviewWCDBError.corruptRecord
             }
             return LegacyNote(id: id,
-                title: row.text("mainTitle") ?? "旧版笔记 #\\(id)",
+                title: row.text("mainTitle") ?? "旧版笔记 #\(id)",
                 markdown: row.text("markdownText") ?? "",
                 folder: row.text("directory_path"),
                 createdAt: row.date("createTime"),
@@ -831,7 +831,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
 
     private static func stableLegacyUUID(_ legacyID: Int) -> UUID {
         var bytes = Array(SHA256.hash(data:
-            Data("Impress-legacy-card:impressdata.db:\\(legacyID)".utf8)).prefix(16))
+            Data("Impress-legacy-card:impressdata.db:\(legacyID)".utf8)).prefix(16))
         bytes[6] = (bytes[6] & 0x0f) | 0x50
         bytes[8] = (bytes[8] & 0x3f) | 0x80
         return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
