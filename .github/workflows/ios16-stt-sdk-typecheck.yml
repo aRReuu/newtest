@@ -54,7 +54,7 @@ jobs:
           start = widget.index("// iOS 17 added WidgetKit container backgrounds")
           end = widget.index("private struct CalibrationWidgetView", start)
           (temp / "ImpressWidgetAvailabilityProbe.swift").write_text(
-              "import SwiftUI\n" + widget[start:end])
+              "import SwiftUI\nimport WidgetKit\n" + widget[start:end])
           PY
           xcrun swiftc -typecheck -swift-version 5 \
             -target arm64-apple-ios16.7 -sdk "$SDK" \
