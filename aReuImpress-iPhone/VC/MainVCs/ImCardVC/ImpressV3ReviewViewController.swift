@@ -2662,7 +2662,8 @@ final class ImpressV3CalibrationDrawerView: UIView, UIGestureRecognizerDelegate 
 
         periodControl.selectedSegmentIndex = 0
         periodControl.accessibilityIdentifier = "impress.review.calibration-drawer-period"
-        ImpressV3Appearance.styleSegmentedControl(periodControl, prominent: false)
+        ImpressV3Appearance.styleSegmentedControl(
+            periodControl, prominent: false, minimumHeight: nil)
         periodControl.addTarget(self, action: #selector(periodChanged), for: .valueChanged)
         addSubview(periodControl)
 
