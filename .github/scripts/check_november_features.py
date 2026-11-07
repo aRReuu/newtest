@@ -103,4 +103,25 @@ assert '<key>NSCameraUsageDescription</key>' in plist
 assert 'ImpressGlobalTextInputTools.shared.install()' in read("aReuImpress-iPhone/Base/AppDelegate.swift")
 assert 'productionWriteEnabled = false' in vault
 assert 'productionWriteEnabled = true' not in vault
+
+# Legacy source stays read-only; one V3 transaction preserves all old rows.
+legacy = read("aReuImpress-iPhone/DataBase/V3/ReviewWCDBRepository.swift")
+notes_list = read("aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImpressNoteListTableViewController.swift")
+backup = read("aReuImpress-iPhone/Utils/Public/ImFileManager/ImpressV3BackupCoordinator.swift")
+backup_ui = read("aReuImpress-iPhone/VC/SubVCs/ImSettingVC/ImpressV3BackupSettingsViewController.swift")
+for token in (
+    'SQLITE_OPEN_READONLY', 'ImpressDB/impressdata.db',
+    'try transaction.run(transaction: {', 'impress_v3_legacy_migration',
+    'originalCardType: originalCard.cardType', 'sourceID: originalCard.id',
+    'throw ReviewWCDBError.duplicateCard', 'card.cardType = displayType',
+    'return try Self.importLegacyIfPresent(on: database,',
+    'public func recoveredLegacyNotes()',
+):
+    assert token in legacy, f"Legacy migration invariant lost: {token}"
+assert 'ImpressV3RecoveredNotesViewController' in notes_list
+assert 'impress.backup.restore-legacy' in backup_ui
+assert 'ImpressV3-latest.zip' in backup
+assert '.forReplacing' in backup and 'replaceItemAt(' in backup
+assert 'original.sha256 == staged.sha256' in backup
+assert 'copied.sha256 == original.sha256' in backup
 print("November 2026 route and privacy checks PASS (static only)")
