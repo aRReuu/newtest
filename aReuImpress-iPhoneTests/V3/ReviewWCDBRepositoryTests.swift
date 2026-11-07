@@ -3684,6 +3684,15 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let oldReviewHistory = try await repo.reviewHistory(for: old.cardID)
         XCTAssertTrue(oldReviewHistory.isEmpty,
             "Aggregate legacy review counts cannot be fabricated as ReviewEvents")
+        // Restored data must be usable, not merely visible: commit one real
+        // FSRS-6 grade and verify exactly one durable review event.
+        let receipt = try await repo.commit(ReviewSubmission(
+            eventID: UUID(), cardID: old.cardID, expectedRevision: 0,
+            rating: .good, reviewedAt: now))
+        XCTAssertEqual(receipt.cardID, old.cardID)
+        XCTAssertEqual(receipt.after.revision, 1)
+        let gradedHistory = try await repo.reviewHistory(for: old.cardID)
+        XCTAssertEqual(gradedHistory.count, 1)
         let retiredType = try XCTUnwrap(cards.first(where: {
             $0.question.contains("旧版无文字卡片")
         }))
