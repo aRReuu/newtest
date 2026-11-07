@@ -38,6 +38,18 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.areu.impress.ci.iqkeyboard-placeholder</string></dict></plist>
           PLIST
+      - name: Recreate omitted web-reader folders for compile-only public mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Sanitized public source does not contain built WebKit resource
+          # directories; placeholders validate native compilation only.
+          # Production HTML/JS assets must be generated in the private build.
+          for reader in DiagramReader MarkdownReader; do
+            mkdir -p "aReuImpress-iPhone/Resources/$reader"
+            printf '%s\n' '<!doctype html><html><body>CI source-only placeholder</body></html>' \
+              > "aReuImpress-iPhone/Resources/$reader/index.html"
+          done
       - name: Force vendored CocoaPods build settings to the app's iOS 16.7 floor
         shell: bash
         run: |
