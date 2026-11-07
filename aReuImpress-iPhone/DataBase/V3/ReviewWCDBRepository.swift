@@ -869,18 +869,22 @@ public actor ReviewWCDBRepository: ReviewRepository {
                     fromTable: legacyCardOriginsTable,
                     where: WCDBV3LegacyCardOriginRow.Properties.legacyID ==
                         originalCard.id)
-                if duplicate != nil || priorOrigin != nil { continue }
-                let status: FSRS.CardState
-                switch originalCard.state {
-                case 1: status = .learning
-                case 2: status = .review
-                case 3: status = .relearning
-                default: status = .new
+                if priorOrigin != nil { continue }
+                if duplicate != nil {
+                    // UUID collisions are extraordinarily unlikely but must
+                    // never silently drop a legacy record or overwrite a V3 card.
+                    throw ReviewWCDBError.duplicateCard
                 }
-                // Retain the old scheduling state where representable. No
-                // fabricated review events are created from aggregate counters.
-                let lastReview = status == .new ? nil : originalCard.lastReview
-                let fsrs = FSRS.Card(
+                let oldCode = originalCard.state
+                let candidateState = [1, 2, 3].contains(oldCode) ? oldCode : 0
+                // A pre-FSRS6 row with incomplete stability/difficulty cannot
+                // safely be continued as a review card. It remains recoverable
+                // as a new card with full legacy metrics held in provenance.
+                let stateCode = candidateState == 2 &&
+                    (originalCard.stability <= 0 || originalCard.difficulty <= 0)
+                    ? 0 : candidateState
+                let lastReview = stateCode == 0 ? nil : originalCard.lastReview
+                let fsrs = Card(
                     due: originalCard.due ?? now,
                     stability: max(0, originalCard.stability),
                     difficulty: max(0, originalCard.difficulty),
@@ -893,7 +897,10 @@ public actor ReviewWCDBRepository: ReviewRepository {
                     learningSteps: max(0, originalCard.relearningStep),
                     reps: max(0, originalCard.reviewCount),
                     lapses: max(0, originalCard.lapseCount),
-                    state: status, lastReview: lastReview)
+                    state: stateCode == 1 ? .learning :
+                           (stateCode == 2 ? .review :
+                            (stateCode == 3 ? .relearning : .new)),
+                    lastReview: lastReview)
                 var card = WCDBV3CardRow()
                 card.cardID = cardKey
                 card.question = originalCard.question
@@ -910,7 +917,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
                 card.revision = 0
                 card.contentRevision = 0
                 card.isSuspended = originalCard.state == 4 ? 1 : 0
-                card.state = status.rawValue
+                card.state = fsrs.state.rawValue
                 card.dueAt = fsrs.due
                 card.lastReviewedAt = fsrs.lastReview
                 card.schedulerPayload = try JSONEncoder().encode(fsrs)

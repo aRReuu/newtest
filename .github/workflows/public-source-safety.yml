@@ -45,6 +45,9 @@ jobs:
             aReuImpress-iPhone/Utils/Public/ImAI/ImpressAISettingsViewController.swift \
             aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3CardComposerViewController.swift \
             aReuImpress-iPhone/VC/MainVCs/ImCardVC/ImpressV3ReviewViewController.swift \
+            aReuImpress-iPhone/DataBase/V3/ReviewWCDBRepository.swift \
+            aReuImpress-iPhone/Utils/Public/ImFileManager/ImpressV3BackupCoordinator.swift \
+            aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImpressNoteListTableViewController.swift \
             aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift \
             aReuImpress-iPhoneTests/V3/ImpressCalibrationIntegrationTests.swift \
             aReuImpress-iPhoneUITests/ImpressV11NavigationUITests.swift

@@ -59,7 +59,8 @@ assert "ImpressSpeechInputUI.swift in Sources" in project
 assert "ImpressSpeechSettingsViewController.swift in Sources" in project
 for relative, anchors in {
     "VC/MainVCs/ImCardVC/ImpressV3CardComposerViewController.swift":
-        ("install(on: questionView)", "install(on: answerView)", "install(on: field)"),
+        ("install(on: questionView, captureVideo:",
+         "install(on: answerView, captureVideo:", "install(on: field)"),
     "VC/MainVCs/ImCardVC/ImpressV3BatchImportViewController.swift":
         ("install(on: editor)",),
     "VC/MainVCs/ImCardVC/ImpressV3ReviewViewController.swift":
