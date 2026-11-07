@@ -477,9 +477,14 @@ final class ImpressV3BackupSettingsViewController: UITableViewController,
                     }
                     do {
                         let repository = try ImpressV3ReviewEnvironment.repository()
-                        try await repository.importApprovedLegacyDatabase(at: temporary)
-                        let alert = UIAlertController(title: V3L("旧版数据导入完成"),
-                            message: V3L("已检查旧数据库并执行受控迁移。原始文件不变；请返回闪卡刷新复习队列。若已导入过同一来源则不会重复添加。"),
+                        let imported = try await repository.importApprovedLegacyDatabase(
+                            at: temporary)
+                        let alert = UIAlertController(
+                            title: imported ? V3L("旧版数据导入完成") :
+                                V3L("没有可新增的旧版数据"),
+                            message: imported
+                                ? V3L("旧数据库已完整读取并事务导入。原文件不变；请返回闪卡刷新复习队列。")
+                                : V3L("这个来源已导入过，或所选数据库不含卡片和笔记。没有重复创建数据。"),
                             preferredStyle: .alert)
                         alert.addAction(UIAlertAction(title: V3L("确定"), style: .default))
                         present(alert, animated: true)

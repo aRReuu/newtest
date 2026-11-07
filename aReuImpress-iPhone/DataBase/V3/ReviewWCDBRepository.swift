@@ -569,7 +569,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
             try db.create(table: Self.legacyMigrationTable, of: WCDBV3LegacyMigrationRow.self)
         })
         do {
-            try Self.importLegacyIfPresent(on: db, path: databasePath)
+            _ = try Self.importLegacyIfPresent(on: db, path: databasePath)
         } catch {
             // A malformed legacy source must never make the current V3 store
             // inaccessible. The old file is untouched and migration can retry.
@@ -843,21 +843,23 @@ public actor ReviewWCDBRepository: ReviewRepository {
     /// All source reads finish before one destination transaction begins.
     /// A failure never half-imports a card collection or a notes collection.
     private static func importLegacyIfPresent(on db: Database, path: String,
-                                              selectedSource: URL? = nil) throws {
+                                              selectedSource: URL? = nil) throws -> Bool {
         let documents = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask)[0]
         let expected = documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite")
         guard URL(fileURLWithPath: path).standardizedFileURL ==
-                expected.standardizedFileURL else { return } // DEBUG fixtures
+                expected.standardizedFileURL else { return false } // DEBUG fixtures
         let legacy = selectedSource ?? documents.appendingPathComponent(
             "ImpressDB/impressdata.db")
-        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
+        guard FileManager.default.fileExists(atPath: legacy.path) else { return false }
         let sourceKey = "impressdata.db/v1"
         let marker: WCDBV3LegacyMigrationRow? = try db.getObject(
             fromTable: legacyMigrationTable,
             where: WCDBV3LegacyMigrationRow.Properties.sourceKey == sourceKey)
-        if marker != nil { return }
+        if marker != nil { return false }
         let original = try readLegacyDatabase(at: legacy)
+        // Valid empty source: do not pretend a migration took place.
+        guard !original.cards.isEmpty || !original.notes.isEmpty else { return false }
         let now = Date()
         let transaction = try db.getTransaction()
         try transaction.run(transaction: {
@@ -974,13 +976,14 @@ public actor ReviewWCDBRepository: ReviewRepository {
             ImpressV3BackupCoordinator.markDataChanged()
         }
         UserDefaults.standard.removeObject(forKey: "ImpressLegacyRecoveryError")
+        return true
     }
 
     /// An explicitly selected, provider-copied old SQLite database may be
     /// imported when installing a new IPA moved the application sandbox.
     /// No source byte is modified, and this action cannot import arbitrary
     /// unreadable formats or merge a second legacy card ID namespace.
-    public func importApprovedLegacyDatabase(at source: URL) throws {
+    public func importApprovedLegacyDatabase(at source: URL) throws -> Bool {
         guard source.isFileURL,
               source.pathExtension.lowercased() == "db",
               FileManager.default.fileExists(atPath: source.path) else {
@@ -988,7 +991,7 @@ public actor ReviewWCDBRepository: ReviewRepository {
         }
         let documents = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask)[0]
-        try Self.importLegacyIfPresent(on: database,
+        return try Self.importLegacyIfPresent(on: database,
             path: documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite").path,
             selectedSource: source)
     }
