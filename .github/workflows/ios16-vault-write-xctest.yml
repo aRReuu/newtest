@@ -1,0 +1,122 @@
+name: Isolated Obsidian approved-write XCTest (iOS 16.7+)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ios16-vault-write-xctest.yml
+      - aReuImpress-iPhone/Utils/Public/ImFileManager/ImObsidianManager.swift
+      - aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift
+      - aReuImpress-iPhoneTests/V3/ReviewWCDBRepositoryTests.swift
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vault-write:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show selected Apple SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Recreate omitted empty CocoaPods resource wrapper for public mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The public sanitized repo omits this binary resource wrapper.
+          # This is a compile-only placeholder, not a replacement for a full IPA.
+          mkdir -p Pods/IQKeyboardManagerSwift/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle
+          cat > Pods/IQKeyboardManagerSwift/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.areu.impress.ci.iqkeyboard-placeholder</string></dict></plist>
+          PLIST
+      - name: Recreate omitted web-reader folders for compile-only public mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Sanitized public source does not contain built WebKit resource
+          # directories; placeholders validate native compilation only.
+          # Production HTML/JS assets must be generated in the private build.
+          for reader in DiagramReader MarkdownReader; do
+            mkdir -p "aReuImpress-iPhone/Resources/$reader"
+            printf '%s\n' '<!doctype html><html><body>CI source-only placeholder</body></html>' \
+              > "aReuImpress-iPhone/Resources/$reader/index.html"
+          done
+      - name: Recreate omitted licensed images as disposable one-pixel CI placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only CI build inputs are synthesized. These are NOT product assets
+          # or a visually valid, distributable IPA.
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, zlib
+          def chunk(kind, raw):
+              return struct.pack(">I", len(raw)) + kind + raw + struct.pack(
+                  ">I", zlib.crc32(kind + raw) & 0xffffffff)
+          png = (b"\x89PNG\r\n\x1a\n" +
+              chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) +
+              chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00\x00")) +
+              chunk(b"IEND", b""))
+          for name in ("imcard_wallpaper.png", "imcard_normal@2x.png",
+                       "imcard_hard@2x.png", "imcard_easy@2x.png",
+                       "imcard_again@2x.png"):
+              file = Path("aReuImpress-iPhone/Resources/ImCard") / name
+              file.parent.mkdir(parents=True, exist_ok=True)
+              file.write_bytes(png)
+          PY
+      - name: Force vendored CocoaPods build settings to the app's iOS 16.7 floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checked-in Pods project predates the target-floor change; macOS
+          # Xcode 26 cannot link its historic iOS 8/9 libarclite targets.
+          # Apply this CI-only setting without running pod install/update.
+          ruby -pi -e 'gsub(/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/, "IPHONEOS_DEPLOYMENT_TARGET = 16.7;")' \
+            Pods/Pods.xcodeproj/project.pbxproj
+      - name: Resolve pinned Swift packages (never run CocoaPods install/update)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone-AltStore \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM"
+      - name: Run ONLY safety-scoped Vault write tests (no XCUITest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c '
+          import sys,json
+          items=json.load(sys.stdin)["devices"]
+          candidates=[d["udid"] for ds in items.values() for d in ds
+              if "iPhone" in d["name"] and d.get("state") != "unavailable"]
+          print(candidates[0] if candidates else "")
+          ')"
+          test -n "$DEVICE_ID"
+          xcodebuild \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM" \
+            -derivedDataPath "$RUNNER_TEMP/ImpressVaultWriteTests" \
+            -only-testing:aReuImpress-iPhoneTests/ReviewWCDBRepositoryTests/testProductionDiffApprovesOnlyAnExplicitCompleteMarkdownChange \
+            -only-testing:aReuImpress-iPhoneTests/ReviewWCDBRepositoryTests/testUserApprovalRequiredAndSuccessfulFixtureWriteIsRecoverable \
+            -only-testing:aReuImpress-iPhoneTests/ReviewWCDBRepositoryTests/testSameFileConflictsNeverOverwriteExternalEdit \
+            -only-testing:aReuImpress-iPhoneTests/ReviewWCDBRepositoryTests/testExplicitQAUndoRestoresExactBOMCRLFBytesAndBlocksLaterConflict \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME= \
+            ENABLE_DEBUG_DYLIB=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
+            test > "$RUNNER_TEMP/targeted-migration.log" 2>&1 || {
+              grep -E 'error:|failed|TEST FAILED|Assertion Failure' "$RUNNER_TEMP/targeted-migration.log" | tail -110 || true
+              tail -160 "$RUNNER_TEMP/targeted-migration.log"
+              exit 1
+            }
+          grep -E '\*\* TEST SUCCEEDED \*\*' "$RUNNER_TEMP/targeted-migration.log"
