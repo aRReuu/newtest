@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static, fail-closed guard for iOS 26 native-only, editor-bound STT.
+"""Static, fail-closed guard for dual Apple on-device STT (iOS 16.7+).
 
 This does NOT replace a hardware/locale microphone test on iPhone 13.
 """
@@ -16,6 +16,7 @@ project = (root / "aReuImpress-iPhone.xcodeproj/project.pbxproj").read_text()
 with (app / "Info.plist").open("rb") as f:
     info = plistlib.load(f)
 assert info.get("NSMicrophoneUsageDescription")
+assert info.get("NSSpeechRecognitionUsageDescription")
 assert "SpeechAnalyzer(" in source and "SpeechTranscriber(" in source
 assert "DictationTranscriber(" in source
 assert "AssetInventory.assetInstallationRequest" in source
@@ -31,7 +32,18 @@ assert "AVAudioConverter(from:" in source
 assert "AnalyzerInput(buffer:" in source
 assert "UnsafeMutableAudioBufferListPointer" in source
 assert "feed.stream" in source
-assert "SFSpeechRecognizer" not in source
+# iOS 16.7-25 must remain supported without cloud audio transmission.
+assert "@available(iOS 26.0, *)" in source
+assert "final class ImpressSpeechModernService" in source
+assert "final class ImpressSpeechService" in source
+assert "final class ImpressLegacySpeechEngine" in source
+assert "SFSpeechRecognizer(locale: choice.locale)" in source
+assert "SFSpeechRecognizer.requestAuthorization" in source
+assert "supportsOnDeviceRecognition" in source
+assert "requiresOnDeviceRecognition = true" in source
+assert "AVAudioSession.sharedInstance().requestRecordPermission" in source
+assert "if #available(iOS 26.0, *)" in source
+assert "finishWaiter" in source and "resolveFinishing" in source
 assert "URLSession" not in source and "AVAudioRecorder" not in source
 assert "FileManager.default" not in source
 assert "NSLog" not in source and "print(" not in source
@@ -60,4 +72,4 @@ for relative, anchors in {
     text = (app / relative).read_text()
     for anchor in anchors:
         assert anchor in text, (relative, anchor)
-print("PASS: native on-device STT, one shared service, protected edit insertion, settings and microphone permission")
+print("PASS: iOS16+ and iOS26+ native offline STT, one facade, secure text insertion, permissions")
