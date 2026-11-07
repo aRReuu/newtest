@@ -664,7 +664,7 @@ final class ImpressCalibrationIntegrationTests: XCTestCase {
         let marker = Data(("synthetic-widget-qa-" + UUID().uuidString).utf8)
         try marker.write(to: url, options: .atomic)
         XCTAssertEqual(try Data(contentsOf: url), marker)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
         #endif
     }
 

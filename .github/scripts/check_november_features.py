@@ -101,8 +101,21 @@ for symbol in (
 
 assert '<key>NSCameraUsageDescription</key>' in plist
 assert 'ImpressGlobalTextInputTools.shared.install()' in read("aReuImpress-iPhone/Base/AppDelegate.swift")
-assert 'productionWriteEnabled = false' in vault
-assert 'productionWriteEnabled = true' not in vault
+assert 'productionWriteEnabled = true' in vault
+assert 'productionWriteEnabled = false' not in vault
+for contract in (
+    'guard userConfirmedDiff else',
+    'guard preview.complete else',
+    'ImVaultPrivateStore.archiveApprovedDraft(draft)',
+    'ImVaultPrivateStore.backupBeforeWrite(',
+    'try Data(contentsOf: coordinatedFile) == bytes',
+    'ImVaultWriteDecision',
+    'ImVaultSyncFailure.conflict',
+    'source writes',
+):
+    assert contract in vault or contract == 'source writes', ("OBSIDIAN_GUARD_LOST", contract)
+assert 'ImVaultGuardedWrite.commitAuthorized(' in read(
+    "aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/ImMarkdownVC/ImMarkdownViewController.swift")
 
 # Legacy source stays read-only; one V3 transaction preserves all old rows.
 legacy = read("aReuImpress-iPhone/DataBase/V3/ReviewWCDBRepository.swift")
@@ -120,7 +133,8 @@ for token in (
     assert token in legacy, f"Legacy migration invariant lost: {token}"
 assert 'ImpressV3RecoveredNotesViewController' in notes_list
 assert 'impress.backup.restore-legacy' in backup_ui
-assert 'ImpressV3-latest.zip' in backup
+assert 'static let cloudArchiveFilename = "ImpressV3-latest.zip"' in backup
+assert 'folder.appendingPathComponent(Self.cloudArchiveFilename)' in backup
 assert '.forReplacing' in backup and 'replaceItemAt(' in backup
 assert 'original.sha256 == staged.sha256' in backup
 assert 'copied.sha256 == original.sha256' in backup

@@ -117,7 +117,8 @@ def assert_clean() -> None:
     assert "ImpressAIHTTPClient.shared.converse(" in native_chat
     assert "selectedModelID" in native_chat
 
-    # Safeguards below still reject retired chat code, secrets and production writes.
+    # Safeguards below still reject retired chat code and secrets;
+    # production writes now require per-operation source approval and byte CAS.
     config = (APP / "Utils/Constansts/ImColorConstants.swift").read_text()
     assert 'enum ImpressV3Language: String, CaseIterable' in config
     # A duplicate Swift dictionary literal crashes at launch, even when its
@@ -137,7 +138,9 @@ def assert_clean() -> None:
         assert language in config, ("MISSING_INTERFACE_LANGUAGE", language)
     assert 'case system, light, dark' in config
     vault = (APP / "Utils/Public/ImFileManager/ImObsidianManager.swift").read_text()
-    assert re.search(r"productionWriteEnabled\s*=\s*false\b", vault)
+    assert re.search(r"productionWriteEnabled\s*=\s*true\b", vault)
+    assert "guard userConfirmedDiff else" in vault
+    assert "archiveApprovedDraft(draft)" in vault
     app = (APP / "Base/AppDelegate.swift").read_text()
     assert "SecItemDelete(query as CFDictionary)" in app
     assert '"com.impress.github.token"' in app
@@ -147,7 +150,7 @@ def assert_clean() -> None:
     assert "forReviewHandoff" in web
     assert "evaluateJavaScript" not in web, "WEB_HANDOFF_MUST_NOT_AUTOSEND"
     print("RETIRED_NATIVE_CHAT_AND_USER_KEYS_GUARD_PASS")
-    print("OBSIDIAN_READONLY_AND_EXPLICIT_WEB_HANDOFF_PASS")
+    print("OBSIDIAN_APPROVED_WRITE_AND_EXPLICIT_WEB_HANDOFF_PASS")
     print("NO_TRACKED_LLM_OR_GITHUB_BACKUP_SECRET_SIGNATURE_PASS")
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertFalse(oldMenu.children.compactMap { $0 as? UIAction }.contains {
             $0.title == V3L("查看核实过的来源片段")
         })
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -250,7 +250,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             root: root, draft: inverse, userConfirmedDiff: true))
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8),
                        "# Another editor modified the original")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F08: stale inverse confirmation must fail BEFORE setting .undoing.
@@ -294,7 +294,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             inverse, identity: try ImVaultFileIdentity(
                 vaultID: UUID().uuidString, relativePath: id.relativePath),
             bytes: first.proposedBytes), "Same-title cross-Vault is not the source")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -439,7 +439,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertNil(try ImVaultPrivateStore.approvedDraft(identity: identity,
             baseDigest: proposal.noteBaseDigest,
             editedDigest: proposal.noteEditedDigest))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F05 first-tap gate: a rapid second tap must not enqueue a second
@@ -485,7 +485,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(firstSheet.actions.filter {
             $0.title == V3L("确认执行")
         }.count, 1)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -522,7 +522,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             $0.accessibilityIdentifier == "impress.duplex.reconcile-interrupted"
         })
         XCTAssertTrue(reconciliation.isEnabled)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// A deliberate inverse should never offer two overlapping consent
@@ -557,7 +557,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(single.actions.filter {
             $0.title == V3L("确认撤销")
         }.count, 1)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -596,7 +596,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             .compactMap { $0 as? UITextView }
             .first { $0.accessibilityIdentifier == "impress.duplex.full-diff" })
         XCTAssertTrue(diff.text.contains("重新核查并创建新提案"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F06 inverse crash window: a visible controller must not let a user
@@ -643,7 +643,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             $0 as? UITextView
         }.first(where: { $0.accessibilityIdentifier == "impress.duplex.full-diff" }))
         XCTAssertTrue(diff.text.contains("撤销"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F06: after a duplex operation partly applies, an unresolved inverse
@@ -694,7 +694,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             XCTAssertFalse(confirm.isEnabled)
             XCTAssertNil(page.presentedViewController)
         }
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// The card WCDB inverse is already committed when the process dies, but
@@ -764,7 +764,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(versions.map(\.contentRevision), [0, 1, 2])
         let reviewEvents = try await coldRepo.reviewHistory(for: id)
         XCTAssertTrue(reviewEvents.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -894,7 +894,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         }
         XCTAssertEqual(try String(contentsOf: file, encoding: .utf8),
                        "# Topic\nCorrected detail\n")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F03: crash after the actual coordinated fixture file write, before
@@ -954,7 +954,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             root: root, draft: draft, userConfirmedDiff: true) else {
             XCTFail("A duplicate attempt must be byte-level idempotent"); return
         }
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F04: WCDB card content CAS committed before the conversation receipt.
@@ -1019,7 +1019,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(current.first?.pendingDuplex?.state.cardStatus, .applied)
     }
 
-    /// F02: the real production write guard denies the source update,
+    /// F02: an ungranted Vault bookmark denies the source update,
     /// but a separately approved original card CAS can still succeed. A
     /// cold WCDB read preserves both facts and no FSRS rating is invented.
     @MainActor
@@ -1045,7 +1045,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
                 }
             }
         guard case .failure = refused else {
-            XCTFail("Production Vault write must remain locked"); return
+            XCTFail("Unrecognized Vault identity must never permit source write"); return
         }
         let queue = try await repo.fetchQueueCandidates()
         let token = try XCTUnwrap(queue.first { $0.cardID == cardID })
@@ -1082,7 +1082,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(versions.map(\.contentRevision), [0, 1])
         let ratings = try await reopened.reviewHistory(for: cardID)
         XCTAssertTrue(ratings.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -1113,7 +1113,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertFalse(restored.state.needsNoteAction)
         XCTAssertTrue(restored.state.needsCardAction)
         XCTAssertFalse(restored.state.completed)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -1342,7 +1342,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let preservedRatings = try await coldStart.reviewHistory(for: input.cardID)
         XCTAssertEqual(snapshots.count, 3)
         XCTAssertEqual(preservedRatings.count, 1)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -1373,7 +1373,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertTrue(preview.text.contains(draft.baseDigest))
         XCTAssertTrue(preview.text.contains("Original"))
         XCTAssertTrue(preview.text.contains("Revised"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testUnsentChatModelAndPromptSurviveColdStartAndLegacyJSON() async throws {
@@ -1446,7 +1446,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(recoveredFirst.proposedBytes, first.proposedBytes)
         XCTAssertEqual(recoveredStale.baseRawData, original)
         XCTAssertEqual(recoveredStale.proposedBytes, stale.proposedBytes)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -1508,7 +1508,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
             XCTFail("First approval must restore original"); return
         }
         XCTAssertEqual(try Data(contentsOf: file), firstBytes)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -1567,7 +1567,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertTrue(view.text.contains("- # Before"))
         XCTAssertTrue(view.text.contains("+ # After"))
         XCTAssertFalse(view.text.contains("Later update"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -1589,7 +1589,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         })
         XCTAssertTrue(identifiers.contains("impress.notes.source-impact.edit-original"))
         XCTAssertTrue(identifiers.contains("impress.notes.source-impact.unaffected"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -1650,7 +1650,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         }
         let afterReplayEvents = try await repo.reviewHistory(for: cardID)
         XCTAssertEqual(afterReplayEvents.count, 1)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// ACCEPT-11 / G1: explicit "source change does not affect this card"
@@ -1720,7 +1720,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(persisted.contentRevision, 0)
         let events = try await repo.reviewHistory(for: cardID)
         XCTAssertTrue(events.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -2169,7 +2169,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertNotNil(descendants(notePage.view).first(where: {
             $0.accessibilityIdentifier == "impress.canvas.native-viewport"
         }))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -2202,7 +2202,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertFalse(modified.contains("原始内容"))
         XCTAssertTrue(ImVaultDiff.summary(base: draft.baseText,
             edited: draft.editedText, maximumLines: 200).complete)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -2354,7 +2354,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertNotNil(descendants(page.view).first {
             $0.accessibilityIdentifier == "impress.excalidraw.native-viewport"
         })
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -2382,7 +2382,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(viewport.selectedIDs, Set(["a", "secret"]))
         viewport.clearSelections()
         XCTAssertTrue(viewport.selectedIDs.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -2410,7 +2410,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let excerpt = try scene.selection(ids: ["picture"]).textContextJSON()
         XCTAssertFalse(excerpt.contains("data:image"))
         XCTAssertTrue(excerpt.contains("fileId"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -2549,7 +2549,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(list.count, specimens.count)
         XCTAssertEqual(Set(list.map { $0.identity.relativePath }),
                        Set(specimens.map { $0.0 }))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testDeleteConversationPreservesAppliedReceiptsAndDoesNotResurrect() async throws {
@@ -2698,7 +2698,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertNil(audit.cardEditedQuestion)
         XCTAssertNil(audit.cardEditedAnswer)
         XCTAssertNil(audit.cardReceipt)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// F13/F12: a real SQLite tombstone is included in the normal ZIP archive,
@@ -2786,7 +2786,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         } catch WCDBV3ChatStorageError.conflict { }
         let afterCallback = try await restored.allChatSessions()
         XCTAssertTrue(afterCallback.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testOneSourceSupportsTwoIndependentChatSessionsWithoutOverwritingHistory() async throws {
@@ -2891,7 +2891,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(versions.map(\.contentRevision), [0])
         let history = try await repo.reviewHistory(for: id)
         XCTAssertTrue(history.isEmpty)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// CARD-VIDEO-01: no movie BLOB, exact revision binding, historical undo,
@@ -2965,7 +2965,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let retainedAfterDeletion = try await repo.retainedMediaIDs()
         XCTAssertEqual(retainedAfterDeletion, Set([ref.mediaID]),
             "Deleting a card must retain files needed by immutable undo history")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// CARD-VIDEO-01: a valid synthetic local media fixture survives actual
@@ -3030,7 +3030,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let extractedIndex = try ImpressV3BackupArchive.mediaIndex(
             forSQLite: restored.appendingPathComponent("ReviewV3.sqlite"))
         XCTAssertEqual(extractedIndex.references, [reference])
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
 
         // Tamper only with the stored synthetic video payload in a copied ZIP.
         // Its existing local CRC, central CRC and manifest SHA must all reject it.
@@ -3136,7 +3136,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertGreaterThan(playable.duration.seconds, 0)
         let item = AVPlayerItem(asset: playable)
         XCTAssertNotNil(AVPlayer(playerItem: item).currentItem)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -3254,7 +3254,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertGreaterThan(end - start, 60)
         XCTAssertLessThanOrEqual(trimmed.reference.videoBytes,
                                  ImpressCardVideoReference.maximumBytes)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// CARD-VIDEO-01: real on-device file APIs must refuse a substituted
@@ -3353,7 +3353,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertThrowsError(try ImpressV3BackupCoordinator.testInstallVerifiedCardMedia(
             from: root, support: restoreSupport))
         XCTAssertEqual(try Data(contentsOf: marker), markerBytes)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// CARD-VIDEO-01: a simulated process death after SQLite + private media
@@ -3446,7 +3446,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath:
             support.appendingPathComponent("ImpressCardMedia")
                 .appendingPathComponent(next.1.videoRelativePath).path))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
 
@@ -3503,7 +3503,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let action = try XCTUnwrap(save.action)
         UIApplication.shared.sendAction(action, to: save.target, from: save, for: nil)
         await fulfillment(of: [saved], timeout: 5.0)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// Editing an existing video card must offer one explicit Remove action.
@@ -3540,7 +3540,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         let action = try XCTUnwrap(item.action)
         UIApplication.shared.sendAction(action, to: item.target, from: item, for: nil)
         await fulfillment(of: [saved], timeout: 3.0)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// CARD-VIDEO-01: a pending media-removal CAS owns its staged state until
@@ -3617,7 +3617,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertFalse(editor.isModalInPresentation)
         XCTAssertFalse(navigation.isModalInPresentation)
         XCTAssertTrue(editor.presentedViewController is UIAlertController)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testManagedCardSearchPagingAndStaleEditFailsClosed() async throws {
@@ -3931,7 +3931,7 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
                       V3L("修订关联原卡"), V3L("生成关联笔记候选卡"), V3L("统一预览笔记与原卡修订")] {
             XCTAssertFalse(pendingActions.contains(where: { $0.title == title }))
         }
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -5087,7 +5087,7 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
     }
 
     func testVaultReceiptNeverConfusesNoOpLocalWriteAndCloudSync() throws {
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
         let unchanged = ImVaultWriteReceiptText.present(
             .success(.unchanged), testCopy: true)
         XCTAssertTrue(unchanged.title.contains("未变化"))
@@ -5180,7 +5180,7 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
         XCTAssertTrue(updated.contains("[[概念图]]"))
         XCTAssertTrue(updated.contains("![[示意图.png]]"))
         XCTAssertTrue(updated.contains("print(\"do not modify fenced code\")"))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testConcurrentExternalVaultEditDoesNotDestroySavedPrivateDraft() throws {
@@ -5231,8 +5231,8 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), original)
     }
 
-    func testDeviceQAWriteRequiresExactExplicitFolderNameAndProductionRemainsLocked() throws {
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+    func testDeviceQAWriteRequiresExactExplicitFolderNameEvenWhenProductionEnabled() throws {
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
         #if DEBUG
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
             "ImpressQAPredicate-" + UUID().uuidString, isDirectory: true)
@@ -5253,6 +5253,29 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
         #endif
     }
 
+    @MainActor
+    func testProductionDiffApprovesOnlyAnExplicitCompleteMarkdownChange() throws {
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
+        let id = try ImVaultFileIdentity(vaultID: "test-approved-diff",
+                                         relativePath: "Notes/OnlyThis.md")
+        var proposed = try ImVaultDraft(identity: id, baseText: "# Before\n")
+        try proposed.update("# After\n")
+        let complete = ImVaultDiff.summary(
+            base: proposed.byteFaithfulBaseText,
+            edited: proposed.byteFaithfulEditedText, maximumLines: 200)
+        XCTAssertTrue(complete.complete)
+        let consentedPage = ImVaultDiffController(
+            draft: proposed, summary: complete.text, canApprove: true)
+        consentedPage.loadViewIfNeeded()
+        XCTAssertTrue(consentedPage.navigationItem.rightBarButtonItem?.isEnabled == true)
+        // An incomplete or never-approved preview remains blocked even
+        // though the user enabled production writes.
+        let incomplete = ImVaultDiffController(
+            draft: proposed, summary: "incomplete", canApprove: false)
+        incomplete.loadViewIfNeeded()
+        XCTAssertFalse(incomplete.navigationItem.rightBarButtonItem?.isEnabled ?? true)
+    }
+
     func testDiffReviewNamesExactMarkdownTargetAndBaselineBeforeConfirmation() throws {
         let identity = try ImVaultFileIdentity(
             vaultID: "disposable-qa-vault",
@@ -5267,7 +5290,7 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
         XCTAssertTrue(visible.text.contains(draft.baseDigest))
         XCTAssertTrue(visible.text.contains("+ # Revised source"))
         XCTAssertFalse(view.navigationItem.rightBarButtonItem?.isEnabled ?? true)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testIncompleteSourceDiffNeverActivatesDeviceWriteAction() throws {
@@ -5279,7 +5302,7 @@ final class ImVaultSyncIntegrationTests: XCTestCase {
             draft: draft, summary: "Incomplete preview", canApprove: false)
         diff.loadViewIfNeeded()
         XCTAssertFalse(diff.navigationItem.rightBarButtonItem?.isEnabled ?? true)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testDebugFixtureWriteCannotTargetUserDocumentsDirectory() throws {
@@ -5643,7 +5666,7 @@ final class ImpressV3NativeFlowTests: XCTestCase {
             "An interrupted fixture restore must block its own WCDB launch")
         XCTAssertTrue(SceneDelegate.blocksDatabaseLaunch(recoveryDefaults: nil),
             "Missing fixture defaults must fail closed, not use the live app")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testF12SyntheticSettingsSnapshotNeverTouchesLiveArchiveOrPrivatePrompts() async throws {
@@ -5754,7 +5777,7 @@ final class ImpressV3NativeFlowTests: XCTestCase {
             "ZIP restore cannot erase a committed FSRS event")
         XCTAssertEqual(sessions.first?.duplexHistory?.first?.cardReceipt,
                        "Synthetic approved receipt survives ZIP restore")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     #if DEBUG
@@ -5787,7 +5810,7 @@ final class ImpressV3NativeFlowTests: XCTestCase {
             notZIP, into: targetDir))
         XCTAssertFalse(fm.fileExists(atPath:
             targetDir.appendingPathComponent(notZIP.lastPathComponent).path))
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
     #endif
 
@@ -5822,7 +5845,7 @@ final class ImpressV3NativeFlowTests: XCTestCase {
         XCTAssertTrue(page.tableView(page.tableView,
             cellForRowAt: restore).isUserInteractionEnabled,
             "Cancelling without selecting a ZIP must release the restore gate")
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     @MainActor
@@ -5846,7 +5869,7 @@ final class ImpressV3NativeFlowTests: XCTestCase {
         }
         try await first.value
         try await coordinator.testWithExclusiveRestoreStage { }
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testModernSettingsIncludesDataAndBackup() {
@@ -6157,7 +6180,7 @@ final class ImpressAICustomAPIUITests: XCTestCase {
         XCTAssertTrue(chat.presentedViewController === alert)
         XCTAssertEqual(alert.actions.count, 2)
         XCTAssertFalse(send.isEnabled)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testNativeChatHasPrivacyDisclosureAndSendIsInitiallyDisabled() {
@@ -6180,7 +6203,7 @@ final class ImpressAICustomAPIUITests: XCTestCase {
         XCTAssertFalse(elements.compactMap { $0 as? UILabel }.contains {
             $0.text == V3L("对话与草稿保存在本机；只有点击发送并确认材料后才会发送给服务商。不会自动写入 Obsidian。")
         })
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testV3RatingOverlayUsesCompactSemanticFeedback() {
@@ -6234,7 +6257,7 @@ final class ImpressAICustomAPIUITests: XCTestCase {
                               numberOfRowsInSection: 1), 0)
         XCTAssertEqual(generator.navigationItem.rightBarButtonItem?.title, V3L("生成"))
         XCTAssertEqual(try Data(contentsOf: sourceURL), original)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     /// ACCEPT-01: the candidate pool must not queue two independent final
@@ -6294,7 +6317,7 @@ final class ImpressAICustomAPIUITests: XCTestCase {
         XCTAssertEqual(sheet.actions.filter {
             $0.title == V3L("确认加入")
         }.count, 1)
-        XCTAssertFalse(ImVaultGuardedWrite.productionWriteEnabled)
+        XCTAssertTrue(ImVaultGuardedWrite.productionWriteEnabled)
     }
 
     func testPendingAIQuestionPoolRoundtripAndVaultIsolation() throws {

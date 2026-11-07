@@ -75,8 +75,11 @@ assert "UI-03.a" in contract and "outlineRows(" in note_list, "Notes outline req
 assert "expandedExternalFolders" in note_list and "impress.notes.folder-row" in note_list
 assert "impress.notes.file-row" in note_list and "content.secondaryText = note.identity.relativePath" not in note_list
 assert "ImVaultReadSync.shared.read(item.identity)" in note_list, "Original Vault read gate bypassed by outline"
-assert re.search(r"productionWriteEnabled\s*=\s*false\b", vault)
-assert not re.search(r"productionWriteEnabled\s*=\s*true\b", vault)
+assert re.search(r"productionWriteEnabled\s*=\s*true\b", vault)
+assert not re.search(r"productionWriteEnabled\s*=\s*false\b", vault)
+assert "guard userConfirmedDiff else" in vault
+assert "guard preview.complete else" in vault
+assert "ImVaultPrivateStore.backupBeforeWrite(" in vault
 assert "private" in contract.lower() or "私有" in contract
 assert "ImVaultPrivateStore.approvedDraft" in chat
 assert "ImVaultPrivateStore.archiveApprovedDraft" in chat
