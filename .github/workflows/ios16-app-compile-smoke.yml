@@ -66,7 +66,9 @@ jobs:
               chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) +
               chunk(b"IDAT", zlib.compress(b"\\x00\\x00\\x00\\x00\\x00")) +
               chunk(b"IEND", b""))
-          for name in ("imcard_wallpaper.png", "imcard_normal@2x.png"):
+          for name in ("imcard_wallpaper.png", "imcard_normal@2x.png",
+                       "imcard_hard@2x.png", "imcard_easy@2x.png",
+                       "imcard_again@2x.png"):
               file = Path("aReuImpress-iPhone/Resources/ImCard") / name
               file.parent.mkdir(parents=True, exist_ok=True)
               file.write_bytes(png)
