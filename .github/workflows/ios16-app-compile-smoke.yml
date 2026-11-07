@@ -50,6 +50,27 @@ jobs:
             printf '%s\n' '<!doctype html><html><body>CI source-only placeholder</body></html>' \
               > "aReuImpress-iPhone/Resources/$reader/index.html"
           done
+      - name: Recreate omitted licensed images as disposable one-pixel CI placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only CI build inputs are synthesized. These are NOT product assets
+          # or a visually valid, distributable IPA.
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, zlib
+          def chunk(kind, raw):
+              return struct.pack(">I", len(raw)) + kind + raw + struct.pack(
+                  ">I", zlib.crc32(kind + raw) & 0xffffffff)
+          png = (b"\\x89PNG\\r\\n\\x1a\\n" +
+              chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) +
+              chunk(b"IDAT", zlib.compress(b"\\x00\\x00\\x00\\x00\\x00")) +
+              chunk(b"IEND", b""))
+          for name in ("imcard_wallpaper.png", "imcard_normal@2x.png"):
+              file = Path("aReuImpress-iPhone/Resources/ImCard") / name
+              file.parent.mkdir(parents=True, exist_ok=True)
+              file.write_bytes(png)
+          PY
       - name: Force vendored CocoaPods build settings to the app's iOS 16.7 floor
         shell: bash
         run: |
