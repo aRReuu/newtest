@@ -38,6 +38,15 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.areu.impress.ci.iqkeyboard-placeholder</string></dict></plist>
           PLIST
+      - name: Force vendored CocoaPods build settings to the app's iOS 16.7 floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checked-in Pods project predates the target-floor change; macOS
+          # Xcode 26 cannot link its historic iOS 8/9 libarclite targets.
+          # Apply this CI-only setting without running pod install/update.
+          ruby -pi -e 'gsub(/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/, "IPHONEOS_DEPLOYMENT_TARGET = 16.7;")' \
+            Pods/Pods.xcodeproj/project.pbxproj
       - name: Resolve pinned Swift packages (never run CocoaPods install/update)
         run: |
           xcodebuild -resolvePackageDependencies \
