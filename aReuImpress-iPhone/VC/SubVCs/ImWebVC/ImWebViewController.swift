@@ -38,7 +38,7 @@ enum ImpressV3DeepSeekHandoff {
         let custom = userPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
         let learningStyle = custom?.isEmpty == false ? custom!
             : "采用第一性原理和奥卡姆剃刀，辨别假设与证据，只保留必要的解释。"
-        let material = markdown ?? "正文超过本次授权的 8 KB 限额，仅提供标题。请在笔记内明确选择片段后再提交。"
+        let material = markdown ?? "完整 Markdown 正文未插入文字框。请通过对话菜单导出原始 MD 文件，再使用 DeepSeek 网页底部的附件按钮选择并上传；文件名不等于已上传。"
         return """
         [学习方式]
         \(learningStyle)
@@ -113,50 +113,6 @@ enum ImpressV3DeepSeekDOMBridge {
         reason: actual.trim() === next.trim() ? "inserted" : "input_mismatch"};
     """#
 
-    static let send = #"""
-    if (location.protocol !== "https:" || location.hostname !== "chat.deepseek.com") {
-        return {ok: false, reason: "untrusted_origin"};
-    }
-    const visible = el => {
-        const r = el.getBoundingClientRect();
-        const css = getComputedStyle(el);
-        return r.width > 5 && r.height > 5 && css.display !== "none" &&
-            css.visibility !== "hidden";
-    };
-    const editors = Array.from(document.querySelectorAll(
-        'textarea, [contenteditable="true"], [role="textbox"]'
-    )).filter(el => (el.tagName === "TEXTAREA" || el.isContentEditable) && visible(el))
-        .sort((a, b) =>
-        b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
-    const input = editors[0];
-    if (!input) return {ok: false, reason: "input_not_found"};
-    const value = input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement
-        ? input.value : (input.innerText || input.textContent || "");
-    if (!value.trim()) return {ok: false, reason: "empty_message"};
-    const scopes = [];
-    let parent = input;
-    for (let n = 0; parent && n < 7; n++, parent = parent.parentElement) {
-        scopes.push(parent);
-    }
-    let sendButton = null;
-    for (const scope of scopes) {
-        const controls = Array.from(scope.querySelectorAll('button, [role="button"]'))
-            .filter(visible);
-        sendButton = controls.find(el =>
-            /(^|[\s_-])(send|submit)([\s_-]|$)|发送|提交/i.test(
-                [el.getAttribute("aria-label"), el.getAttribute("title"),
-                 el.getAttribute("data-testid")].filter(Boolean).join(" ")));
-        if (!sendButton) sendButton = controls.find(el =>
-            el.matches('button[type="submit"]'));
-        if (sendButton) break;
-    }
-    if (!sendButton) return {ok: false, reason: "send_control_not_found"};
-    if (sendButton.disabled || sendButton.getAttribute("aria-disabled") === "true") {
-        return {ok: false, reason: "send_disabled"};
-    }
-    sendButton.click();
-    return {ok: true, reason: "send_clicked"};
-    """#
 }
 
 /// WKWebView控制器单例
@@ -168,6 +124,11 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
     // MARK: - Properties
     private var webView = WKWebView()
+    private let keyboardToolbar = UIToolbar()
+    private var webBottom: NSLayoutConstraint?
+    private var webBottomAboveToolbar: NSLayoutConstraint?
+    private var keyboardObservers: [NSObjectProtocol] = []
+    private var pendingMarkdownNote: (filename: String, markdown: String)?
     private let floatingButton = UIButton(type: .custom)
     private var isDragging = false
     private var initialCenter: CGPoint = .zero
@@ -186,11 +147,16 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
     /// paths remain available until the old business routes are retired.
     static func forReviewHandoff(
         text: String,
-        nativeDiscussion: ImpressAINativeChatViewController? = nil
+        nativeDiscussion: ImpressAINativeChatViewController? = nil,
+        fullNoteMarkdown: String? = nil,
+        noteFilename: String? = nil
     ) -> ImWebViewController {
         let controller = ImWebViewController()
         controller.reviewHandoffText = text
         controller.linkedNativeDiscussion = nativeDiscussion
+        if let fullNoteMarkdown, let noteFilename {
+            controller.pendingMarkdownNote = (filename: noteFilename, markdown: fullNoteMarkdown)
+        }
         return controller
     }
 
@@ -211,6 +177,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
         setupViews()
         if reviewHandoffText == nil { bindAction() }
         setupConstraints()
+        setupWebKeyboard()
         setupNavigationBar()
         loadInitialURL()
         if reviewHandoffText == nil { setupFloatingButton() }
@@ -227,6 +194,11 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
         super.viewWillDisappear(animated)
         floatingButton.isHidden = true
         idleSet(false)
+        navigationController?.navigationBar.tintColor = ImpressV3Appearance.navigationActionInk
+    }
+
+    deinit {
+        keyboardObservers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     override func viewWillLayoutSubviews() {
@@ -270,6 +242,9 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
         let newWebView = WKWebView(frame: .zero, configuration: configuration)
         newWebView.navigationDelegate = self
+        newWebView.isOpaque = false
+        newWebView.backgroundColor = ImpressV3Appearance.page
+        newWebView.scrollView.backgroundColor = ImpressV3Appearance.page
         newWebView.allowsBackForwardNavigationGestures = true
         newWebView.scrollView.showsVerticalScrollIndicator = true
         newWebView.scrollView.showsHorizontalScrollIndicator = false
@@ -280,12 +255,134 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
 
     private func setupConstraints() {
         webView.translatesAutoresizingMaskIntoConstraints = false
+        webBottom = webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            webBottom!
         ])
+    }
+
+    private func setupWebKeyboard() {
+        // WKWebView's DOM editor is not a UITextView. A native keyboardLayoutGuide
+        // accessory avoids private WebKit responder APIs and works on iOS 16.7.
+        keyboardToolbar.translatesAutoresizingMaskIntoConstraints = false
+        keyboardToolbar.isHidden = true
+        keyboardToolbar.accessibilityIdentifier = "impress.deepseek.keyboard-tools"
+        keyboardToolbar.backgroundColor = ImpressV3Appearance.page
+        let ocr = UIBarButtonItem(title: nil,
+            image: UIImage(systemName: "text.viewfinder"),
+            primaryAction: UIAction { [weak self] _ in
+                guard let self, self.trustedDeepSeekPage() else { return }
+                ImpressSpeechAccessory.presentWebOCR(from: self) { [weak self] text in
+                    self?.writeToWeb(text, append: true)
+                }
+            }, menu: nil)
+        ocr.accessibilityLabel = V3L("拍照 OCR 输入网页")
+        ocr.accessibilityIdentifier = "impress.deepseek.keyboard.ocr"
+        let microphone = UIBarButtonItem(title: nil,
+            image: UIImage(systemName: "mic"),
+            primaryAction: UIAction { [weak self] _ in
+                guard let self, self.trustedDeepSeekPage() else { return }
+                ImpressSpeechAccessory.presentWeb(from: self) { [weak self] transcript in
+                    self?.writeToWeb(transcript, append: true)
+                }
+            }, menu: nil)
+        microphone.accessibilityLabel = V3L("语音转文字并填入网页输入框")
+        microphone.accessibilityIdentifier = "impress.deepseek.keyboard.speech"
+        keyboardToolbar.items = [
+            UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
+            ocr, microphone
+        ]
+        view.addSubview(keyboardToolbar)
+        webBottomAboveToolbar = webView.bottomAnchor.constraint(
+            equalTo: keyboardToolbar.topAnchor)
+        NSLayoutConstraint.activate([
+            keyboardToolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            keyboardToolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            keyboardToolbar.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            keyboardToolbar.heightAnchor.constraint(equalToConstant: 44)
+        ])
+        for (name, visible) in [
+            (UIResponder.keyboardWillShowNotification, true),
+            (UIResponder.keyboardWillHideNotification, false)
+        ] {
+            keyboardObservers.append(NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main) { [weak self] _ in
+                    guard let self, self.view.window != nil else { return }
+                    self.keyboardToolbar.isHidden = !visible
+                    self.webBottom?.isActive = !visible
+                    self.webBottomAboveToolbar?.isActive = visible
+                    self.view.layoutIfNeeded()
+                })
+        }
+    }
+
+    // Follow the official site's actual computed surface, never override its
+    // CSS text colors or force a conflicting dark/light theme onto React.
+    private func synchronizeWebSurface() {
+        guard trustedDeepSeekPage() else { return }
+        webView.evaluateJavaScript(#"""
+            (() => {
+                const el = document.elementFromPoint(innerWidth / 2, innerHeight / 3);
+                let cursor = el || document.body;
+                for (let i = 0; cursor && i < 15; i++, cursor = cursor.parentElement) {
+                    const match = getComputedStyle(cursor).backgroundColor.match(
+                        /^rgba?\\((\\d+)[, ]+?(\\d+)[, ]+?(\\d+)(?:[, /]+([\\d.]+))?\\)$/);
+                    if (match && (!match[4] || Number(match[4]) > 0.98))
+                        return [Number(match[1]), Number(match[2]), Number(match[3])];
+                }
+                return [255, 255, 255];
+            })()
+            """#) { [weak self] value, error in
+            guard let self, error == nil, let rgb = value as? [NSNumber],
+                  rgb.count == 3 else { return }
+            let surface = UIColor(red: CGFloat(truncating: rgb[0]) / 255,
+                                  green: CGFloat(truncating: rgb[1]) / 255,
+                                  blue: CGFloat(truncating: rgb[2]) / 255, alpha: 1)
+            let brightness = (0.2126 * rgb[0].doubleValue +
+                              0.7152 * rgb[1].doubleValue +
+                              0.0722 * rgb[2].doubleValue) / 255
+            let foreground = brightness < 0.45 ? UIColor.white : UIColor.black
+            self.view.backgroundColor = surface
+            self.webView.backgroundColor = surface
+            self.webView.scrollView.backgroundColor = surface
+            self.keyboardToolbar.backgroundColor = surface
+            let bar = UINavigationBarAppearance()
+            bar.configureWithOpaqueBackground()
+            bar.backgroundColor = surface
+            bar.titleTextAttributes = [.foregroundColor: foreground]
+            self.navigationItem.standardAppearance = bar
+            self.navigationItem.scrollEdgeAppearance = bar
+            self.navigationController?.navigationBar.tintColor = foreground
+        }
+    }
+
+    private func exportMarkdownForWebAttachment() {
+        guard let note = pendingMarkdownNote else { return }
+        do {
+            let last = note.filename.split(separator: "/").last.map(String.init) ?? "note.md"
+            let clean = String(last.prefix(90)).replacingOccurrences(of: "\\", with: "_")
+            let filename = clean.lowercased().hasSuffix(".md") ? clean : clean + ".md"
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ImpressDeepSeekExports", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder,
+                withIntermediateDirectories: true)
+            let destination = folder.appendingPathComponent(
+                UUID().uuidString + "-" + filename)
+            try Data(note.markdown.utf8).write(to: destination, options: .atomic)
+            try FileManager.default.setAttributes([
+                .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+            ], ofItemAtPath: destination.path)
+            let picker = UIDocumentPickerViewController(forExporting: [destination],
+                asCopy: true)
+            present(picker, animated: true)
+            // No claim of upload: DeepSeek owns the real attachment button,
+            // accepted file types, and its upload-success confirmation.
+        } catch {
+            showBridgeError(V3L("无法导出 Markdown 附件：") + error.localizedDescription)
+        }
     }
 
     private func setupNavigationBar() {
@@ -309,16 +406,6 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
         prepare.accessibilityLabel = V3L("将本次材料填入 DeepSeek 输入框")
         prepare.accessibilityIdentifier = "impress.deepseek.insert-material"
         prepare.isEnabled = reviewHandoffText?.isEmpty == false
-
-        let send = UIBarButtonItem(image: UIImage(systemName: "arrow.up.circle"),
-            style: .plain, target: self, action: #selector(sendWebMessage))
-        send.accessibilityLabel = V3L("发送网页输入框中的消息")
-        send.accessibilityIdentifier = "impress.deepseek.send"
-
-        let speech = UIBarButtonItem(image: UIImage(systemName: "mic"),
-            style: .plain, target: self, action: #selector(startWebSpeech))
-        speech.accessibilityLabel = V3L("语音转文字并填入网页输入框")
-        speech.accessibilityIdentifier = "impress.deepseek.speech"
 
         let promptActions = ImpressV3PromptLibrary.load().map { template in
             UIAction(title: template.title,
@@ -347,17 +434,6 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
             self?.navigationController?.pushViewController(
                 ImpressAISettingsViewController(), animated: true)
         }
-        let webOCR = UIAction(title: V3L("拍照 OCR 输入网页"),
-            image: UIImage(systemName: "text.viewfinder")) { [weak self] _ in
-            guard let self else { return }
-            guard self.trustedDeepSeekPage() else {
-                self.showBridgeError(V3L("请先打开 DeepSeek 网页。"))
-                return
-            }
-            ImpressSpeechAccessory.presentWebOCR(from: self) { [weak self] text in
-                self?.writeToWeb(text, append: true)
-            }
-        }
         let refresh = UIAction(title: V3L("刷新网页"),
             image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
             self?.webView.reload()
@@ -367,11 +443,17 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
             attributes: reviewHandoffText?.isEmpty == false ? [] : [.disabled]) {
                 [weak self] _ in self?.copyReviewHandoff()
             }
+        let markdownExport: [UIMenuElement] = pendingMarkdownNote == nil ? [] : [
+            UIAction(title: V3L("导出完整 MD 供网页附件上传"),
+                     image: UIImage(systemName: "doc.badge.arrow.up")) { [weak self] _ in
+                self?.exportMarkdownForWebAttachment()
+            }
+        ]
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"),
-            menu: UIMenu(children: [promptMenu, webOCR, settings, nativeHistory,
-                                    copyFallback, refresh]))
+            menu: UIMenu(children: [promptMenu, settings, nativeHistory] +
+                         markdownExport + [copyFallback, refresh]))
         more.accessibilityLabel = V3L("对话设置与历史")
-        navigationItem.rightBarButtonItems = [more, speech, send, prepare]
+        navigationItem.rightBarButtonItems = [more, prepare]
     }
 
     private func showBridgeError(_ reason: String, fallback: String? = nil) {
@@ -421,39 +503,6 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
     @objc private func importPreparedMaterial() {
         guard let value = reviewHandoffText, !value.isEmpty else { return }
         writeToWeb(value, append: true)
-    }
-
-    @objc private func startWebSpeech() {
-        guard trustedDeepSeekPage() else {
-            showBridgeError(V3L("请先打开 DeepSeek 网页。"))
-            return
-        }
-        ImpressSpeechAccessory.presentWeb(from: self) { [weak self] dictated in
-            self?.writeToWeb(dictated, append: true)
-        }
-    }
-
-    @objc private func sendWebMessage() {
-        guard trustedDeepSeekPage() else {
-            showBridgeError(V3L("当前不是 DeepSeek 官方网页，已阻止发送。"))
-            return
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let value = try await webView.callAsyncJavaScript(
-                    ImpressV3DeepSeekDOMBridge.send,
-                    arguments: [:], in: nil, contentWorld: .page)
-                guard let result = value as? [String: Any],
-                      result["ok"] as? Bool == true else {
-                    showBridgeError(V3L("找不到可确认的发送按钮；请在网页中手动发送。"))
-                    return
-                }
-                navigationItem.prompt = nil
-            } catch {
-                showBridgeError(error.localizedDescription)
-            }
-        }
     }
 
     @objc private func copyReviewHandoff() {
@@ -617,7 +666,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // 加载完成
+        synchronizeWebSurface()
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

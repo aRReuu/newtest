@@ -100,7 +100,14 @@ enum ImpressSpeechAccessory {
         field.inputAccessoryView = toolbar(for: field)
     }
 
-    private static func toolbar(for field: UIView) -> UIToolbar {
+    // Card composer uses the same OCR/STT bar; video capture is a contextual tool.
+    static func install(on textView: UITextView, captureVideo: @escaping () -> Void) {
+        guard textView.isEditable else { return }
+        textView.inputAccessoryView = toolbar(for: textView, captureVideo: captureVideo)
+    }
+
+    private static func toolbar(for field: UIView,
+                                captureVideo: (() -> Void)? = nil) -> UIToolbar {
         let bar = UIToolbar()
         let action = UIAction { [weak field] _ in
             guard let field else { return }
@@ -119,11 +126,18 @@ enum ImpressSpeechAccessory {
             }, menu: nil)
         camera.accessibilityLabel = V3L("拍照识别文字")
         camera.accessibilityIdentifier = "impress.ocr.keyboard"
-        bar.items = [
-            UIBarButtonItem(barButtonSystemItem: .flexibleSpace,
-                            target: nil, action: nil),
-            camera, microphone
-        ]
+        var actions = [UIBarButtonItem(barButtonSystemItem: .flexibleSpace,
+                                       target: nil, action: nil)]
+        if let captureVideo {
+            let video = UIBarButtonItem(title: nil,
+                image: UIImage(systemName: "video.badge.plus"),
+                primaryAction: UIAction { _ in captureVideo() }, menu: nil)
+            video.accessibilityLabel = V3L("拍摄视频")
+            video.accessibilityIdentifier = "impress.card.video.keyboard"
+            actions.append(video)
+        }
+        actions.append(contentsOf: [camera, microphone])
+        bar.items = actions
         bar.sizeToFit()
         return bar
     }

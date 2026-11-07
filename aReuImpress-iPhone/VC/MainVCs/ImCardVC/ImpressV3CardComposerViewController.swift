@@ -127,7 +127,6 @@ final class ImpressV3CardComposerViewController: UIViewController,
     private let optionList = UIStackView()
     private let addOptionButton = UIButton(type: .system)
     private let imageButton = UIButton(type: .system)
-    private let videoCaptureButton = UIButton(type: .system)
     private var capturedVideoSource: URL?
     private var activeVideoImportToken = UUID()
     private let imagePreview = UIImageView()
@@ -246,16 +245,10 @@ final class ImpressV3CardComposerViewController: UIViewController,
         questionView.textContainerInset = UIEdgeInsets(top: ImpressV3Appearance.Metrics.fieldPadding, left: ImpressV3Appearance.Metrics.fieldPadding, bottom: ImpressV3Appearance.Metrics.fieldPadding, right: ImpressV3Appearance.Metrics.fieldPadding)
         questionView.heightAnchor.constraint(greaterThanOrEqualToConstant: ImpressV3Appearance.Metrics.questionEditorMinHeight).isActive = true
         questionView.accessibilityLabel = V3L("问题")
-        ImpressSpeechAccessory.install(on: questionView)
+        ImpressSpeechAccessory.install(on: questionView, captureVideo: { [weak self] in
+            self?.captureVideo()
+        })
         stack.addArrangedSubview(makeLabeledGroup(V3L("问题"), child: questionView))
-        let cameraOCR = UIButton(type: .system)
-        ImpressV3Appearance.styleQuietButton(cameraOCR, title: V3L("拍照输入"),
-                                              symbol: "text.viewfinder")
-        cameraOCR.accessibilityIdentifier = "impress.composer.ocr-camera"
-        cameraOCR.addTarget(self, action: #selector(captureQuestionText),
-                            for: .touchUpInside)
-        stack.addArrangedSubview(cameraOCR)
-
         configureQA()
         configureChoices()
         configurePhoto()
@@ -305,7 +298,9 @@ final class ImpressV3CardComposerViewController: UIViewController,
             ? choiceExplanationDraft : standardAnswerDraft
         answerView.textContainerInset = UIEdgeInsets(top: ImpressV3Appearance.Metrics.fieldPadding, left: ImpressV3Appearance.Metrics.fieldPadding, bottom: ImpressV3Appearance.Metrics.fieldPadding, right: ImpressV3Appearance.Metrics.fieldPadding)
         answerView.heightAnchor.constraint(greaterThanOrEqualToConstant: ImpressV3Appearance.Metrics.answerEditorMinHeight).isActive = true
-        ImpressSpeechAccessory.install(on: answerView)
+        ImpressSpeechAccessory.install(on: answerView, captureVideo: { [weak self] in
+            self?.captureVideo()
+        })
         answerView.accessibilityLabel = V3L("答案")
         let answerGroup = makeLabeledGroup(V3L("答案"), child: answerView)
         answerTitleLabel = answerGroup.arrangedSubviews.first as? UILabel
@@ -333,10 +328,6 @@ final class ImpressV3CardComposerViewController: UIViewController,
         renderOptionRows()
     }
 
-    @objc private func captureQuestionText() {
-        ImpressSpeechAccessory.presentOCR(for: questionView)
-    }
-
     private func configurePhoto() {
         photoSection.axis = .vertical
         photoSection.spacing = ImpressV3Appearance.Metrics.sectionSpacing
@@ -345,12 +336,6 @@ final class ImpressV3CardComposerViewController: UIViewController,
             imageButton, title: V3L("从相册选择图片或视频"), symbol: "photo.on.rectangle")
         imageButton.addTarget(self, action: #selector(selectPhoto), for: .touchUpInside)
         photoSection.addArrangedSubview(imageButton)
-        ImpressV3Appearance.styleQuietButton(videoCaptureButton,
-            title: V3L("拍摄视频"), symbol: "video.badge.plus")
-        videoCaptureButton.accessibilityIdentifier = "impress.card.video.camera"
-        videoCaptureButton.addTarget(self, action: #selector(captureVideo),
-                                     for: .touchUpInside)
-        photoSection.addArrangedSubview(videoCaptureButton)
         imagePreview.contentMode = .scaleAspectFit
         imagePreview.backgroundColor = ImpressV3Appearance.surface
         imagePreview.layer.cornerRadius = ImpressV3Appearance.Radius.field

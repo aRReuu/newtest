@@ -22,10 +22,8 @@ for symbol in (
     'https://chat.deepseek.com/',
     'callAsyncJavaScript(',
     'ImpressV3DeepSeekDOMBridge.insert',
-    'ImpressV3DeepSeekDOMBridge.send',
     'location.hostname !== "chat.deepseek.com"',
     'impress.deepseek.insert-material',
-    'impress.deepseek.send',
     'ImpressSpeechAccessory.presentWeb(',
 ):
     assert symbol in web, f"Web route lost {symbol}"
@@ -41,8 +39,14 @@ assert 'nativeDiscussion: native' in cards
 assert 'contentRevision: latest.contentRevision' in cards
 assert 'nativeDiscussion: native' in notes
 assert 'sourceVersion: latest.digest' in notes
-assert 'ImpressSpeechAccessory.presentOCR(for: questionView)' in composer
+assert 'impress.composer.ocr-camera' not in composer
+assert 'V3L("拍照输入")' not in composer
+assert 'V3L("拍摄视频")' not in composer
+assert 'captureVideo()' in composer
 assert 'ImpressSpeechAccessory.presentWeb(from: self)' in web
+assert 'impress.deepseek.keyboard-tools' in web
+assert 'sendWebMessage' not in web
+assert 'startWebSpeech' not in web
 assert 'ImpressSpeechAccessory.presentWebOCR(from: self)' in web
 
 for symbol in (
@@ -60,11 +64,9 @@ for symbol in (
     assert symbol in speech, f"OCR/STT input lost {symbol}"
 
 for symbol in (
-    'impress.card.video.camera',
     'UIImagePickerController()',
     'beginVideoSelection(provider)',
     'removeCapturedVideoSource()',
-    'impress.composer.ocr-camera',
     'activeVideoImportToken == token',
 ):
     assert symbol in composer, f"Card media lost {symbol}"

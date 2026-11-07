@@ -37,11 +37,6 @@ final class ImpressV3ReviewViewController: UIViewController {
     private var needsReloadAfterCollection = false
 
     private let cardStack = SwipeCardStack()
-    private let calibrationDrawer = ImpressV3CalibrationDrawerView()
-    private var calibrationDrawerHeight: NSLayoutConstraint?
-    private var calibrationDrawerExpandedHeight: CGFloat = 0
-    private var calibrationDrawerObserver: NSObjectProtocol?
-    private var calibrationDrawerRequestID = 0
     private let revealButton = UIButton(type: .system)
     private let statusLabel = UILabel()
     /// The compact status line carries the mapping; only SwipeCardStack can rate.
@@ -69,23 +64,6 @@ final class ImpressV3ReviewViewController: UIViewController {
         view.backgroundColor = ImpressV3Appearance.page
         setupNativeLayout()
         setupNavigation()
-        calibrationDrawer.onExpansionRequest = { [weak self] expanded in
-            self?.setCalibrationDrawerExpanded(expanded)
-        }
-        calibrationDrawer.onPeriodChange = { [weak self] in
-            self?.reloadCalibrationDrawerChart()
-        }
-        calibrationDrawer.onOpen = { [weak self] period in
-            self?.openCalibrationFromDrawer(period)
-        }
-        calibrationDrawerObserver = NotificationCenter.default.addObserver(
-            forName: ImpressCalibrationLocalStore.didChange,
-            object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, self.calibrationDrawer.isExpanded else { return }
-                self.reloadCalibrationDrawerChart()
-            }
-        }
         // A media resolver is a read-only metadata lookup; the view itself
         // verifies answer reveal/phase and the file's SHA on a worker thread.
         resolveCardVideo = { [weak self] cardID, revision in
@@ -104,31 +82,6 @@ final class ImpressV3ReviewViewController: UIViewController {
         if !hasLoaded { reloadSession() }
     }
 
-    deinit {
-        if let calibrationDrawerObserver {
-            NotificationCenter.default.removeObserver(calibrationDrawerObserver)
-        }
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        // UIKit owns large-title and status-bar dimensions. Measure only
-        // while this root Flashcards page owns the navigation bar.
-        guard let navigation = navigationController,
-              navigation.topViewController === self,
-              let window = view.window else { return }
-        let statusTop = window.windowScene?.statusBarManager?.statusBarFrame.minY ?? 0
-        let titleBottom = navigation.navigationBar.convert(
-            navigation.navigationBar.bounds, to: window).maxY
-        let measured = titleBottom - statusTop
-        guard measured.isFinite, measured > 55,
-              abs(measured - calibrationDrawerExpandedHeight) > 0.5 else { return }
-        calibrationDrawerExpandedHeight = measured
-        if calibrationDrawer.isExpanded {
-            calibrationDrawerHeight?.constant = measured
-        }
-    }
-
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         if let mediaPlayer, mediaPlayer.presentingViewController == nil {
@@ -140,7 +93,6 @@ final class ImpressV3ReviewViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         refreshLocalizedReview()
-        if calibrationDrawer.isExpanded { reloadCalibrationDrawerChart() }
         if needsReloadAfterCollection && pending == nil {
             needsReloadAfterCollection = false
             reloadSession()
@@ -198,7 +150,6 @@ final class ImpressV3ReviewViewController: UIViewController {
     /// Re-label the existing controls without recreating a live FSRS session.
     private func refreshLocalizedReview() {
         title = V3L("闪卡")
-        calibrationDrawer.refreshLocalization()
         setupNavigation()
         if #available(iOS 15.0, *) {
             ImpressV3NativeButtonAppearance.reviewPrimary(revealButton, title: V3L("查看答案"))
@@ -219,70 +170,6 @@ final class ImpressV3ReviewViewController: UIViewController {
             return view.answerIsRevealed
         }
         return false
-    }
-
-    private func setCalibrationDrawerExpanded(_ expanded: Bool) {
-        guard calibrationDrawer.isExpanded != expanded else { return }
-        if expanded {
-            // Resolve the native navigation title before the first expansion.
-            view.layoutIfNeeded()
-            if calibrationDrawerExpandedHeight <= 55 {
-                let bar = navigationController?.navigationBar
-                let statusTop = view.window?.windowScene?.statusBarManager?
-                    .statusBarFrame.minY ?? 0
-                if let bar, let window = view.window {
-                    calibrationDrawerExpandedHeight = max(0,
-                        bar.convert(bar.bounds, to: window).maxY - statusTop)
-                }
-            }
-            // Landscape may collapse the native large-title height to
-            // less than the minimum size of a meaningful Cartesian plot.
-            // The handle must not become a dead control in that case.
-            guard calibrationDrawerExpandedHeight > 55 else {
-                openCalibrationFromDrawer(calibrationDrawer.selectedPeriod)
-                return
-            }
-        }
-        calibrationDrawer.setExpanded(expanded)
-        calibrationDrawerHeight?.constant = expanded
-            ? calibrationDrawerExpandedHeight
-            : ImpressV3CalibrationDrawerView.collapsedHeight
-        UIView.animate(withDuration: 0.26, delay: 0,
-                       options: [.curveEaseInOut, .beginFromCurrentState]) {
-            self.view.layoutIfNeeded()
-        }
-        if expanded { reloadCalibrationDrawerChart() }
-    }
-
-    private func reloadCalibrationDrawerChart() {
-        guard calibrationDrawer.isExpanded else { return }
-        calibrationDrawerRequestID += 1
-        let request = calibrationDrawerRequestID
-        let selected = calibrationDrawer.selectedPeriod
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let records = try await ImpressCalibrationLocalStore.shared.trendRecords()
-                let plot = try ImpressCalibrationChartProjector.project(
-                    records: records, period: selected)
-                guard self.calibrationDrawer.isExpanded,
-                      self.calibrationDrawer.selectedPeriod == selected,
-                      self.calibrationDrawerRequestID == request else { return }
-                self.calibrationDrawer.show(plot)
-            } catch {
-                guard self.calibrationDrawer.isExpanded,
-                      self.calibrationDrawerRequestID == request else { return }
-                self.calibrationDrawer.showUnavailable()
-            }
-        }
-    }
-
-    private func openCalibrationFromDrawer(_ selected: CalibrationWidgetPeriod) {
-        guard navigationController?.topViewController === self else { return }
-        let page = ImpressCalibrationViewController()
-        page.loadViewIfNeeded()
-        page.selectWidgetPeriod(selected)
-        navigationController?.pushViewController(page, animated: true)
     }
 
     private func setupNativeLayout() {
@@ -352,11 +239,6 @@ final class ImpressV3ReviewViewController: UIViewController {
         repeatButton.addTarget(self, action: #selector(refreshCards), for: .touchUpInside)
         repeatButton.isHidden = true
 
-        calibrationDrawer.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(calibrationDrawer)
-        let drawerHeight = calibrationDrawer.heightAnchor.constraint(
-            equalToConstant: ImpressV3CalibrationDrawerView.collapsedHeight)
-        calibrationDrawerHeight = drawerHeight
         view.addSubview(statusLabel)
         view.addSubview(currentCardActions)
         view.addSubview(cardStack)
@@ -365,14 +247,7 @@ final class ImpressV3ReviewViewController: UIViewController {
         view.addSubview(completionLabel)
         view.addSubview(repeatButton)
         NSLayoutConstraint.activate([
-            calibrationDrawer.topAnchor.constraint(
-                equalTo: view.safeAreaLayoutGuide.topAnchor),
-            calibrationDrawer.leadingAnchor.constraint(
-                equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            calibrationDrawer.trailingAnchor.constraint(
-                equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            drawerHeight,
-            statusLabel.topAnchor.constraint(equalTo: calibrationDrawer.bottomAnchor,
+            statusLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor,
                                              constant: 8),
             statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: currentCardActions.leadingAnchor, constant: -8),
@@ -2082,8 +1957,6 @@ final class ImpressV3SettingsHubViewController: UITableViewController {
     }
     private let groups: [(name: String, items: [Item])] = [
         ("内容工具", [
-            Item(title: "AI 服务", detail: "多 API 连接、多模型与智能出题路由",
-                 symbol: "sparkles", destination: .aiService),
             Item(title: "提示词", detail: "费曼总结、选择题、问题与答案 · 可建立多份自定义模板",
                  symbol: "text.book.closed", destination: .promptLibrary)
         ]),
@@ -2140,7 +2013,7 @@ final class ImpressV3SettingsHubViewController: UITableViewController {
     override func tableView(_ tableView: UITableView,
                             titleForFooterInSection section: Int) -> String? {
         switch section {
-        case 0: return V3L("API Key 由 Keychain 管理；私人笔记只在明确授权的生成任务中发送。")
+        case 0: return V3L("管理本地学习提示词；AI 服务配置保留于会话设置中。")
         case 1: return V3L("FSRS-6 决定到期时间；通知仅负责提醒。")
         case 2: return V3L("默认跟随系统；手动选择仅影响 Impress，不修改 iPhone 系统外观。")
         case 3: return V3L("仅使用 Apple 端侧语音模型，录音不会写入历史或发送到服务器。")

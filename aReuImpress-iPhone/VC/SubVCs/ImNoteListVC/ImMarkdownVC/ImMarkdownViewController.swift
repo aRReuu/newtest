@@ -1627,7 +1627,9 @@ final class ImVaultDocumentController: UIViewController {
                     answer: markdown, repository: repository, sourceKey: key,
                     sourceVersion: latest.digest, noteIdentity: latest.identity)
                 let web = ImWebViewController.forReviewHandoff(
-                    text: payload, nativeDiscussion: native)
+                    text: payload, nativeDiscussion: native,
+                    fullNoteMarkdown: markdown == nil ? latest.markdown : nil,
+                    noteFilename: latest.identity.relativePath)
                 let navigation = ImNavigationViewController(rootViewController: web)
                 navigation.modalPresentationStyle = .fullScreen
                 self.present(navigation, animated: true)

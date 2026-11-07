@@ -18,10 +18,9 @@ function body(named) {
   return source.slice(first, end);
 }
 const insert = body("insert");
-const send = body("send");
+assert.ok(!source.includes('static let send = #"""'), "native send bridge must be retired");
 assert.ok(!insert.includes("fetch(") && !insert.includes("form.submit("),
   "insertion must never send a message");
-assert.ok(!send.includes("fetch("), "sending must click an existing UI control");
 
 function fakeEnvironment(options = {}) {
   let clicks = 0;
@@ -95,26 +94,14 @@ result = run(insert, env, { payload: "Second paragraph", append: true });
 assert.equal(result.ok, true);
 assert.equal(env.editor.value, "第一段\nSecond paragraph");
 assert.equal(env.countClicks(), 0);
-result = run(send, env);
-assert.equal(result.ok, true);
-assert.equal(env.countClicks(), 1, "one explicit send must cause one click");
 
-env = fakeEnvironment({ disabled: true });
-run(insert, env, { payload: "draft", append: false });
-assert.equal(run(send, env).ok, false);
-assert.equal(env.countClicks(), 0);
 
 env = fakeEnvironment({ noEditor: true });
 assert.equal(run(insert, env, { payload: "draft" }).ok, false);
-assert.equal(run(send, env).ok, false);
 
 env = fakeEnvironment({ hostname: "phishing.example" });
 assert.equal(run(insert, env, { payload: "private" }).reason, "untrusted_origin");
-assert.equal(run(send, env).reason, "untrusted_origin");
 
-env = fakeEnvironment({ noSendButton: true });
-run(insert, env, { payload: "draft" });
-assert.equal(run(send, env).reason, "send_control_not_found");
 
 env = fakeEnvironment({ editableDiv: true });
 result = run(insert, env, { payload: "contenteditable draft", append: false });
@@ -122,4 +109,4 @@ assert.equal(result.ok, true);
 assert.equal(env.editor.innerText, "contenteditable draft");
 assert.equal(env.countClicks(), 0);
 
-console.log("DeepSeek bridge offline tests PASS: React setter, append, explicit send, origin, disabled, missing editor, contenteditable");
+console.log("DeepSeek bridge offline tests PASS: React setter, append, no native send, origin, missing editor, contenteditable");
