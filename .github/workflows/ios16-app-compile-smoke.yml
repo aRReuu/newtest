@@ -86,7 +86,7 @@ jobs:
         run: |
           xcodebuild -resolvePackageDependencies \
             -workspace aReuImpress-iPhone.xcworkspace \
-            -scheme aReuImpress-iPhone \
+            -scheme aReuImpress-iPhone-AltStore \
             -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM"
       - name: Compile entire iOS app, without signing or XCTest
         shell: bash
@@ -94,7 +94,7 @@ jobs:
           set -euo pipefail
           xcodebuild \
             -workspace aReuImpress-iPhone.xcworkspace \
-            -scheme aReuImpress-iPhone \
+            -scheme aReuImpress-iPhone-AltStore \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
