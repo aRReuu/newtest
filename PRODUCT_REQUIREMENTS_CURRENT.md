@@ -539,3 +539,50 @@ This extension has been frozen '+ →Album/Documentation/Take pictures.@Leaves: 
 
 
 **According to the implementation phase (independent candidate, non-published function) **:CARD-VIDEO-01 Media Reference-only White List, two-end shearing compartments and offline code size/code rate/disk budget estimate pure logic has been prepared for independent Git objects; local Swift 6.2.1(Linux)19 has been named XCtest **19/19LOCAL L0 PASS**. HEVC priority/H.264 for budget planner, non-integer cropping time, double temporary space residuals and compression estimates are algorithms PASS only;** not ** real AVFundation code or MP4 volume compliance. PHPicker, AVFundation Exporter, Application Support andWCDB/ZIPCODE NOT DONE;Xcode/iOS CI/RealUI NOT RUN. Shared ref does not move during the old L3 event, the old IPA scope never represents a new final version of the video.
+
+
+## 2026-11-07 — Cloud backup identity and controlled Obsidian source writes
+
+This amendment supersedes all earlier statements in this contract that permanently
+blocked production Vault source writes or required a timestamp in the cloud
+archive filename. The historical instructions remain records of previous gates,
+not current behavior.
+
+**Cloud backup:** The one automatic cloud destination is
+`ImpressV3-latest.zip` in the user-authorized iCloud Drive folder. A new
+verified snapshot replaces that file under File Provider coordination. No date,
+time, snapshot UUID, or version suffix appears in the visible cloud filename.
+The manifest inside the ZIP may record a date for recovery auditing. Local
+Application Support keeps versioned recovery snapshots independently, and
+existing legacy user-visible files are not deleted without explicit approval.
+A locally verified File Provider replacement is not proof that Apple has
+finished uploading to its servers.
+
+**Vault source write authorization:** The production guard is
+`ImVaultGuardedWrite.productionWriteEnabled = true`. This is permission to
+offer the existing *manual, per-file* commit flow, not permission to auto-write.
+The sole authority is the selected security-scoped Vault bookmark plus the
+validated `vaultID`, relative Markdown path, and original source SHA-256.
+A user must edit a source-faithful private draft, review a complete diff,
+and explicitly confirm each write. At commit the authorized root, safe path,
+regular file type, download status, bytes, source digest, and proposed bytes
+are checked again under `NSFileCoordinator`. Before changing source, preserve
+an immutable approved-draft snapshot and a read-verified private original-byte
+recovery copy. After writing, read back and compare the exact bytes. Reject
+conflicts, incomplete diffs, stale permission, unsupported formats, missing
+source, and verification failures without automatic overwrite.
+
+**Scope exclusions:** The old `ImObsidianManager.writeMarkdownFile` rendering
+overwrite API stays disabled. Do not use rendered or translated text, untrusted
+HTML/Canvas/Excalidraw, Chat text, or a background sync process as a source
+write transaction. Drawing-related formats including `.excalidraw.md` and
+`.canvas` remain non-writable by the generic Markdown editor. AI proposals
+and original-card CAS each retain explicit independent user selection and
+receipts, permitting partial success without pretending cross-provider atomicity.
+Undo follows the same preview/version-confirmation gates. A successful local
+write is not evidence of completed remote Obsidian/iCloud sync.
+
+**Validation:** Source guards and targeted synthetic iOS XCTest support the
+local write path; signed iPhone 13 File Provider/iCloud compatibility must be
+tested separately. Do not publish a device-PASS conclusion from simulator tests
+or from an unsigned IPA build alone.
