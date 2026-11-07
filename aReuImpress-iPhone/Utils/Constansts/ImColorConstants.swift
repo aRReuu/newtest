@@ -823,6 +823,13 @@ enum ImpressV3Language: String, CaseIterable {
     }
 
     private static let translations: [String: (traditional: String, english: String)] = [
+        "近7日": ("近7日", "Last 7 days"),
+        "近30日": ("近30日", "Last 30 days"),
+        "本年": ("本年", "This year"),
+        "展开校准预览": ("展開校準預覽", "Expand calibration preview"),
+        "收起校准预览": ("收起校準預覽", "Collapse calibration preview"),
+        "可以上下滑动校准抽屉": ("可上下滑動校準抽屜", "Swipe up or down to change the calibration preview"),
+        "校准数据读取失败": ("校準資料讀取失敗", "Could not load calibration data"),
         "询问任何问题": ("詢問任何問題", "Ask anything"),
         "确认有限对话上下文": ("確認有限的對話上下文", "Confirm Limited Chat Context"),
         "本次仅向云端模型发送最近 16 条已完成对话及当前输入；更早的消息仍完整保存在本机，不代表模型已经读过。": ("這次僅向雲端模型傳送最近 16 則已完成訊息及目前輸入；較早訊息仍完整保留於本機，不代表模型已讀過。", "Only the latest 16 completed turns and the current input are sent to the provider. Earlier messages remain on your device and are not represented as read by the model."),
