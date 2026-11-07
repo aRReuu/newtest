@@ -48,6 +48,25 @@ assert 'impress.deepseek.keyboard-tools' in web
 assert 'sendWebMessage' not in web
 assert 'startWebSpeech' not in web
 assert 'ImpressSpeechAccessory.presentWebOCR(from: self)' in web
+# iOS 18.4+ can supply a real, explicitly selected file URL to WebKit's
+# own upload panel; iOS 16.7-18.3 keeps Safari-style native upload support.
+for symbol in (
+    'WKUIDelegate, UIDocumentPickerDelegate',
+    'if #available(iOS 18.4, *)',
+    'newWebView.uiDelegate = self',
+    'runOpenPanelWith parameters: WKOpenPanelParameters',
+    'frame.securityOrigin.host == "chat.deepseek.com"',
+    'webFilePickerCompletion = completionHandler',
+    'finishWebFileSelection([url])',
+    'makeMarkdownAttachmentURL()',
+    'UIDocumentPickerViewController(forExporting:',
+):
+    assert symbol in web, f"DeepSeek native attachment contract lost {symbol}"
+assert 'webView(_ webView: WKWebView,' in web
+assert 'sendWebMessage' not in web
+assert 'ImpressV3DeepSeekDOMBridge.send' not in web
+assert 'keyboardToolbar.isHidden = !visible' in web
+assert 'webView.scrollView.backgroundColor = surface' in web
 
 for symbol in (
     'import VisionKit',
