@@ -9,7 +9,7 @@ final class ImpressV11NavigationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testFourPrimaryDestinationsAndColdRestart() throws {
+    func testThreePrimaryDestinationsAndColdRestart() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(zh-Hans)",
                                 "-AppleLocale", "zh_CN"]
@@ -23,9 +23,42 @@ final class ImpressV11NavigationUITests: XCTestCase {
         try validateNativeTabNavigation(in: app, capture: false)
     }
 
+    /// Genuine UIKit drawer interaction. This is intentionally scoped to
+    /// navigation; it does not run the long 18-step knowledge loop.
+    func testFlashcardCalibrationDrawerCollapsePeriodAndDetailNavigation() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(zh-Hans)"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 25))
+        XCTAssertEqual(app.tabBars.firstMatch.buttons.count, 3)
+
+        let handle = app.buttons["impress.review.calibration-drawer-handle"]
+        XCTAssertTrue(handle.waitForExistence(timeout: 15))
+        handle.tap()
+        let previewPeriod = app.segmentedControls[
+            "impress.review.calibration-drawer-period"]
+        XCTAssertTrue(previewPeriod.waitForExistence(timeout: 10))
+        XCTAssertTrue(previewPeriod.isHittable)
+        XCTAssertEqual(previewPeriod.buttons.count, 3)
+
+        let preview = app.buttons["impress.review.calibration-drawer-chart"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 10))
+        preview.swipeUp()
+        XCTAssertFalse(previewPeriod.isHittable,
+            "An upward swipe must collapse the preview without scoring a card")
+        handle.tap()
+        XCTAssertTrue(previewPeriod.isHittable)
+        previewPeriod.buttons.element(boundBy: 1).tap()
+        preview.tap()
+        let detailPeriod = app.segmentedControls["impress.calibration.period"]
+        XCTAssertTrue(detailPeriod.waitForExistence(timeout: 12))
+        XCTAssertTrue(detailPeriod.buttons.element(boundBy: 1).isSelected,
+            "Drawer month period must route to the existing Calibration page")
+    }
+
     /// Open the real installed app through its registered URL scheme. This
     /// tests the external WidgetKit tap route without a test-only navigation hook.
-    func testWidgetWeekMonthYearDeepLinksReusePrimaryCalibrationController() throws {
+    func testWidgetWeekMonthYearDeepLinksOpenSettingsCalibration() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(zh-Hans)"]
         app.launch()
@@ -36,11 +69,8 @@ final class ImpressV11NavigationUITests: XCTestCase {
         for (key, segmentIndex) in periods {
             let url = try XCTUnwrap(URL(string: "impress://calibration/" + key))
             app.open(url)
-            // Use the agreed four-Tab order, not localized title strings.
-            let tab = app.tabBars.buttons.element(boundBy: 2)
-            XCTAssertTrue(tab.waitForExistence(timeout: 20))
-            XCTAssertTrue(tab.isSelected,
-                "Widget link must navigate to existing calibration Tab for " + key)
+            // Calibration is a pushed Settings screen: the tab bar can be
+            // intentionally hidden. Check the actual destination instead.
             let selector = app.segmentedControls["impress.calibration.period"]
             XCTAssertTrue(selector.waitForExistence(timeout: 15))
             XCTAssertTrue(selector.buttons.element(boundBy: segmentIndex).isSelected,
@@ -2505,14 +2535,14 @@ final class ImpressV11NavigationUITests: XCTestCase {
         }
     }
 
-    /// A genuine four-Tab Settings visit. Backup is in the LAST grouped
+    /// A genuine three-Tab Settings visit. Backup is in the LAST grouped
     /// section and offscreen at iPhone simulator heights: UITableView need not
     /// expose an uninstantiated cell until it has been scrolled into view.
     /// Never substitute a direct controller instantiation for visible UI.
     private func openVisibleBackupSettings(in app: XCUIApplication) {
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 20))
-        tabBar.buttons.element(boundBy: 3).tap()
+        tabBar.buttons.element(boundBy: 2).tap()
         XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 15))
         let table = app.tables.firstMatch
         XCTAssertTrue(table.waitForExistence(timeout: 15))
@@ -2651,10 +2681,10 @@ final class ImpressV11NavigationUITests: XCTestCase {
                                               capture: Bool) throws {
         let bar = app.tabBars.firstMatch
         XCTAssertTrue(bar.waitForExistence(timeout: 30),
-            "App should show the native four-tab shell, not a database error")
-        XCTAssertEqual(bar.buttons.count, 4,
-            "The agreed primary tabs are Flashcard, Notes, Calibration and Settings")
-        for index in 0..<4 {
+            "App should show the native three-tab shell, not a database error")
+        XCTAssertEqual(bar.buttons.count, 3,
+            "The primary tabs are Flashcards, Notes and Settings")
+        for index in 0..<3 {
             let destination = bar.buttons.element(boundBy: index)
             XCTAssertTrue(destination.isHittable, "Tab \(index) must be tappable")
             destination.tap()
