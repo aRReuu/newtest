@@ -37,6 +37,11 @@ final class ImpressV3ReviewViewController: UIViewController {
     private var needsReloadAfterCollection = false
 
     private let cardStack = SwipeCardStack()
+    private let calibrationDrawer = ImpressV3CalibrationDrawerView()
+    private var calibrationDrawerHeight: NSLayoutConstraint?
+    private var calibrationDrawerExpandedHeight: CGFloat = 0
+    private var calibrationDrawerObserver: NSObjectProtocol?
+    private var calibrationDrawerRequestID = 0
     private let revealButton = UIButton(type: .system)
     private let statusLabel = UILabel()
     /// The compact status line carries the mapping; only SwipeCardStack can rate.
@@ -60,9 +65,27 @@ final class ImpressV3ReviewViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = V3L("闪卡")
+        navigationItem.largeTitleDisplayMode = .always
         view.backgroundColor = ImpressV3Appearance.page
         setupNativeLayout()
         setupNavigation()
+        calibrationDrawer.onExpansionRequest = { [weak self] expanded in
+            self?.setCalibrationDrawerExpanded(expanded)
+        }
+        calibrationDrawer.onPeriodChange = { [weak self] in
+            self?.reloadCalibrationDrawerChart()
+        }
+        calibrationDrawer.onOpen = { [weak self] period in
+            self?.openCalibrationFromDrawer(period)
+        }
+        calibrationDrawerObserver = NotificationCenter.default.addObserver(
+            forName: ImpressCalibrationLocalStore.didChange,
+            object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.calibrationDrawer.isExpanded else { return }
+                self.reloadCalibrationDrawerChart()
+            }
+        }
         // A media resolver is a read-only metadata lookup; the view itself
         // verifies answer reveal/phase and the file's SHA on a worker thread.
         resolveCardVideo = { [weak self] cardID, revision in
@@ -81,6 +104,31 @@ final class ImpressV3ReviewViewController: UIViewController {
         if !hasLoaded { reloadSession() }
     }
 
+    deinit {
+        if let calibrationDrawerObserver {
+            NotificationCenter.default.removeObserver(calibrationDrawerObserver)
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // UIKit owns large-title and status-bar dimensions. Measure only
+        // while this root Flashcards page owns the navigation bar.
+        guard let navigation = navigationController,
+              navigation.topViewController === self,
+              let window = view.window else { return }
+        let statusTop = window.windowScene?.statusBarManager?.statusBarFrame.minY ?? 0
+        let titleBottom = navigation.navigationBar.convert(
+            navigation.navigationBar.bounds, to: window).maxY
+        let measured = titleBottom - statusTop
+        guard measured.isFinite, measured > 55,
+              abs(measured - calibrationDrawerExpandedHeight) > 0.5 else { return }
+        calibrationDrawerExpandedHeight = measured
+        if calibrationDrawer.isExpanded {
+            calibrationDrawerHeight?.constant = measured
+        }
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         if let mediaPlayer, mediaPlayer.presentingViewController == nil {
@@ -92,6 +140,7 @@ final class ImpressV3ReviewViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         refreshLocalizedReview()
+        if calibrationDrawer.isExpanded { reloadCalibrationDrawerChart() }
         if needsReloadAfterCollection && pending == nil {
             needsReloadAfterCollection = false
             reloadSession()
@@ -149,6 +198,7 @@ final class ImpressV3ReviewViewController: UIViewController {
     /// Re-label the existing controls without recreating a live FSRS session.
     private func refreshLocalizedReview() {
         title = V3L("闪卡")
+        calibrationDrawer.refreshLocalization()
         setupNavigation()
         if #available(iOS 15.0, *) {
             ImpressV3NativeButtonAppearance.reviewPrimary(revealButton, title: V3L("查看答案"))
@@ -169,6 +219,64 @@ final class ImpressV3ReviewViewController: UIViewController {
             return view.answerIsRevealed
         }
         return false
+    }
+
+    private func setCalibrationDrawerExpanded(_ expanded: Bool) {
+        guard calibrationDrawer.isExpanded != expanded else { return }
+        if expanded {
+            // Resolve the native navigation title before the first expansion.
+            view.layoutIfNeeded()
+            if calibrationDrawerExpandedHeight <= 55 {
+                let bar = navigationController?.navigationBar
+                let statusTop = view.window?.windowScene?.statusBarManager?
+                    .statusBarFrame.minY ?? 0
+                if let bar, let window = view.window {
+                    calibrationDrawerExpandedHeight = max(0,
+                        bar.convert(bar.bounds, to: window).maxY - statusTop)
+                }
+            }
+            guard calibrationDrawerExpandedHeight > 55 else { return }
+        }
+        calibrationDrawer.setExpanded(expanded)
+        calibrationDrawerHeight?.constant = expanded
+            ? calibrationDrawerExpandedHeight
+            : ImpressV3CalibrationDrawerView.collapsedHeight
+        UIView.animate(withDuration: 0.26, delay: 0,
+                       options: [.curveEaseInOut, .beginFromCurrentState]) {
+            self.view.layoutIfNeeded()
+        }
+        if expanded { reloadCalibrationDrawerChart() }
+    }
+
+    private func reloadCalibrationDrawerChart() {
+        guard calibrationDrawer.isExpanded else { return }
+        calibrationDrawerRequestID += 1
+        let request = calibrationDrawerRequestID
+        let selected = calibrationDrawer.selectedPeriod
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let records = try await ImpressCalibrationLocalStore.shared.trendRecords()
+                let plot = try ImpressCalibrationChartProjector.project(
+                    records: records, period: selected)
+                guard self.calibrationDrawer.isExpanded,
+                      self.calibrationDrawer.selectedPeriod == selected,
+                      self.calibrationDrawerRequestID == request else { return }
+                self.calibrationDrawer.show(plot)
+            } catch {
+                guard self.calibrationDrawer.isExpanded,
+                      self.calibrationDrawerRequestID == request else { return }
+                self.calibrationDrawer.showUnavailable()
+            }
+        }
+    }
+
+    private func openCalibrationFromDrawer(_ selected: CalibrationWidgetPeriod) {
+        guard navigationController?.topViewController === self else { return }
+        let page = ImpressCalibrationViewController()
+        page.loadViewIfNeeded()
+        page.selectWidgetPeriod(selected)
+        navigationController?.pushViewController(page, animated: true)
     }
 
     private func setupNativeLayout() {
@@ -238,6 +346,11 @@ final class ImpressV3ReviewViewController: UIViewController {
         repeatButton.addTarget(self, action: #selector(refreshCards), for: .touchUpInside)
         repeatButton.isHidden = true
 
+        calibrationDrawer.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(calibrationDrawer)
+        let drawerHeight = calibrationDrawer.heightAnchor.constraint(
+            equalToConstant: ImpressV3CalibrationDrawerView.collapsedHeight)
+        calibrationDrawerHeight = drawerHeight
         view.addSubview(statusLabel)
         view.addSubview(currentCardActions)
         view.addSubview(cardStack)
@@ -246,7 +359,15 @@ final class ImpressV3ReviewViewController: UIViewController {
         view.addSubview(completionLabel)
         view.addSubview(repeatButton)
         NSLayoutConstraint.activate([
-            statusLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            calibrationDrawer.topAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.topAnchor),
+            calibrationDrawer.leadingAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            calibrationDrawer.trailingAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            drawerHeight,
+            statusLabel.topAnchor.constraint(equalTo: calibrationDrawer.bottomAnchor,
+                                             constant: 8),
             statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(lessThanOrEqualTo: currentCardActions.leadingAnchor, constant: -8),
             statusLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
@@ -2507,4 +2628,153 @@ final class ImpressV3CardVersionDetailViewController: UIViewController {
         ])
     }
     @objc private func restoreTapped() { onRestore?() }
+}
+
+
+// MARK: - Compact calibration drawer: no input to SwipeCardStack or FSRS
+@MainActor
+final class ImpressV3CalibrationDrawerView: UIView, UIGestureRecognizerDelegate {
+    static let collapsedHeight: CGFloat = 28
+    private let handle = UIButton(type: .system)
+    private let periodControl = UISegmentedControl(items: [
+        V3L("近7日"), V3L("近30日"), V3L("本年")])
+    private let chart = ImpressCalibrationTrendChart()
+    private let boundary = UIView()
+
+    private(set) var isExpanded = false
+    var onExpansionRequest: ((Bool) -> Void)?
+    var onPeriodChange: (() -> Void)?
+    var onOpen: ((CalibrationWidgetPeriod) -> Void)?
+
+    var selectedPeriod: CalibrationWidgetPeriod {
+        switch periodControl.selectedSegmentIndex {
+        case 1: return .month
+        case 2: return .year
+        default: return .week
+        }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = ImpressV3Appearance.page
+        clipsToBounds = true
+        accessibilityIdentifier = "impress.review.calibration-drawer"
+
+        periodControl.selectedSegmentIndex = 0
+        periodControl.accessibilityIdentifier = "impress.review.calibration-drawer-period"
+        ImpressV3Appearance.styleSegmentedControl(periodControl, prominent: false)
+        periodControl.addTarget(self, action: #selector(periodChanged), for: .valueChanged)
+        addSubview(periodControl)
+
+        chart.accessibilityIdentifier = "impress.review.calibration-drawer-chart"
+        chart.accessibilityTraits = [.button]
+        chart.accessibilityHint = V3L("点击打开每日校准")
+        chart.addGestureRecognizer(UITapGestureRecognizer(
+            target: self, action: #selector(openFullCalibration)))
+        addSubview(chart)
+
+        handle.accessibilityIdentifier = "impress.review.calibration-drawer-handle"
+        handle.tintColor = ImpressV3Appearance.secondaryText
+        handle.addTarget(self, action: #selector(toggleExpanded), for: .touchUpInside)
+        addSubview(handle)
+
+        boundary.backgroundColor = ImpressV3Appearance.divider
+        addSubview(boundary)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        addGestureRecognizer(pan)
+        setExpanded(false)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(frame:) required")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let width = bounds.width
+        let height = bounds.height
+        let gripHeight = Self.collapsedHeight
+        handle.frame = CGRect(x: 0, y: max(0, height - gripHeight),
+                              width: width, height: gripHeight)
+        boundary.frame = CGRect(x: 0, y: max(0, height - 0.5),
+                                width: width, height: 0.5)
+        if isExpanded {
+            let selectorHeight: CGFloat = 30
+            periodControl.frame = CGRect(x: 16, y: 3,
+                                         width: max(0, width - 32),
+                                         height: selectorHeight)
+            chart.frame = CGRect(x: 8, y: selectorHeight + 5,
+                                 width: max(0, width - 16),
+                                 height: max(0, height - selectorHeight - gripHeight - 6))
+        } else {
+            periodControl.frame = .zero
+            chart.frame = .zero
+        }
+    }
+
+    func setExpanded(_ expanded: Bool) {
+        isExpanded = expanded
+        periodControl.isHidden = !expanded
+        chart.isHidden = !expanded
+        handle.setImage(UIImage(systemName: expanded ? "chevron.up" : "chevron.down"),
+                        for: .normal)
+        refreshLocalization()
+        setNeedsLayout()
+    }
+
+    func refreshLocalization() {
+        for (index, title) in [V3L("近7日"), V3L("近30日"), V3L("本年")].enumerated() {
+            periodControl.setTitle(title, forSegmentAt: index)
+        }
+        handle.accessibilityLabel = isExpanded
+            ? V3L("收起校准预览") : V3L("展开校准预览")
+        handle.accessibilityHint = V3L("可以上下滑动校准抽屉")
+        chart.accessibilityHint = V3L("点击打开每日校准")
+    }
+
+    func show(_ plot: ImpressCalibrationChartData) {
+        chart.update(values: plot.values, smooth: plot.smooth,
+                     title: plot.title, labels: plot.labels)
+    }
+
+    func showUnavailable() {
+        chart.update(values: [], smooth: [], title: V3L("校准数据读取失败"),
+                     labels: [])
+    }
+
+    @objc private func toggleExpanded() {
+        onExpansionRequest?(!isExpanded)
+    }
+
+    @objc private func periodChanged() {
+        onPeriodChange?()
+    }
+
+    @objc private func openFullCalibration() {
+        onOpen?(selectedPeriod)
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+        // Period selection is exclusively a native UISegmentedControl gesture.
+        if isExpanded && pan.location(in: self).y <= periodControl.frame.maxY {
+            return false
+        }
+        let velocity = pan.velocity(in: self)
+        return abs(velocity.y) > abs(velocity.x) * 1.2
+    }
+
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        let travel = gesture.translation(in: self).y
+        let velocity = gesture.velocity(in: self).y
+        if travel > 24 || velocity > 240 {
+            onExpansionRequest?(true)
+        } else if travel < -24 || velocity < -240 {
+            onExpansionRequest?(false)
+        }
+    }
 }
