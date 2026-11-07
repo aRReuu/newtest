@@ -1,0 +1,54 @@
+name: Impress iOS 16.7 no-signing app compilation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ios16-app-compile-smoke.yml
+      - aReuImpress-iPhone/DataBase/V3/**
+      - aReuImpress-iPhone/VC/SubVCs/ImWebVC/**
+      - aReuImpress-iPhone/VC/SubVCs/ImNoteListVC/**
+      - aReuImpress-iPhone/VC/MainVCs/ImCardVC/**
+      - aReuImpress-iPhone/Utils/Public/ImFileManager/**
+      - aReuImpress-iPhone/Utils/Public/ImSpeech/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show selected Apple SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Resolve pinned Swift packages (never run CocoaPods install/update)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM"
+      - name: Compile entire iOS app, without signing or XCTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace aReuImpress-iPhone.xcworkspace \
+            -scheme aReuImpress-iPhone \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ImpressSPM" \
+            -derivedDataPath "$RUNNER_TEMP/ImpressBuild" \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
+            build > "$RUNNER_TEMP/build.log" 2>&1 || {
+              grep -E 'error:|fatal error:|BUILD FAILED' "$RUNNER_TEMP/build.log" | tail -100 || true
+              tail -140 "$RUNNER_TEMP/build.log"
+              exit 1
+            }
+          grep -E '\*\* BUILD SUCCEEDED \*\*' "$RUNNER_TEMP/build.log"
