@@ -26,6 +26,18 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --sdk iphonesimulator --show-sdk-version
+      - name: Recreate omitted empty CocoaPods resource wrapper for public mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The public sanitized repo omits this binary resource wrapper.
+          # This is a compile-only placeholder, not a replacement for a full IPA.
+          mkdir -p Pods/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle
+          cat > Pods/IQKeyboardManagerSwift/Resources/IQKeyboardManager.bundle/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.areu.impress.ci.iqkeyboard-placeholder</string></dict></plist>
+          PLIST
       - name: Resolve pinned Swift packages (never run CocoaPods install/update)
         run: |
           xcodebuild -resolvePackageDependencies \
