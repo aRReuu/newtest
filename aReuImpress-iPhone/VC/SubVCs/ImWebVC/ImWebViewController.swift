@@ -190,6 +190,7 @@ class ImWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate,
         idleSet(true)
         floatingButton.isHidden = reviewHandoffText != nil
         updatePromptMenu()
+        synchronizeWebSurface()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -197,6 +198,13 @@ class ImWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate,
         floatingButton.isHidden = true
         idleSet(false)
         navigationController?.navigationBar.tintColor = ImpressV3Appearance.navigationActionInk
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            synchronizeWebSurface()
+        }
     }
 
     deinit {
@@ -336,15 +344,29 @@ class ImWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate,
         guard trustedDeepSeekPage() else { return }
         webView.evaluateJavaScript(#"""
             (() => {
-                const el = document.elementFromPoint(innerWidth / 2, innerHeight / 3);
-                let cursor = el || document.body;
-                for (let i = 0; cursor && i < 15; i++, cursor = cursor.parentElement) {
-                    const match = getComputedStyle(cursor).backgroundColor.match(
-                        /^rgba?\((\d+)[, ]+?(\d+)[, ]+?(\d+)(?:[, /]+([\d.]+))?\)$/);
-                    if (match && (!match[4] || Number(match[4]) > 0.98))
-                        return [Number(match[1]), Number(match[2]), Number(match[3])];
+                // The first opaque message bubble is NOT the page surface.
+                // Query the owning page, then a blank edge, not the chat text.
+                const opaqueRGB = el => {
+                    if (!el) return null;
+                    const c = getComputedStyle(el).backgroundColor;
+                    const m = c.match(/^rgba?\((\d+)[, ]+?(\d+)[, ]+?(\d+)(?:[, /]+([\d.]+))?\)$/);
+                    return m && (!m[4] || Number(m[4]) >= 0.98)
+                        ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+                };
+                for (const el of [document.documentElement, document.body,
+                                  document.getElementById("root"),
+                                  document.getElementById("app")]) {
+                    const surface = opaqueRGB(el);
+                    if (surface) return surface;
                 }
-                return [255, 255, 255];
+                let edge = document.elementFromPoint(Math.max(2, innerWidth - 3),
+                                                      innerHeight / 2);
+                for (let n = 0; edge && n < 15; n++, edge = edge.parentElement) {
+                    const surface = opaqueRGB(edge);
+                    if (surface) return surface;
+                }
+                return getComputedStyle(document.documentElement)
+                    .colorScheme.includes("dark") ? [20, 20, 20] : [255, 255, 255];
             })()
             """#) { [weak self] value, error in
             guard let self, error == nil, let rgb = value as? [NSNumber],
