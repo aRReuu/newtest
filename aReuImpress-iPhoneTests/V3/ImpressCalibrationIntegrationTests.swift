@@ -6,20 +6,18 @@ import ImpressReviewCore
 
 final class ImpressCalibrationIntegrationTests: XCTestCase {
     @MainActor
-    func testFourTabsOpenExistingCalibrationWithoutRewritingScores() throws {
+    func testThreeTabsKeepCalibrationInSettingsWithoutRewritingScores() throws {
         let root = ImTabBarViewController()
         root.loadViewIfNeeded()
         let tabs = try XCTUnwrap(root.viewControllers)
-        XCTAssertEqual(tabs.count, 4)
+        XCTAssertEqual(tabs.count, 3)
         XCTAssertEqual(tabs.compactMap { $0.tabBarItem.title },
-                       ["闪卡", "笔记", "校准器", "设置"])
+                       ["闪卡", "笔记", "设置"])
         XCTAssertTrue((tabs[0] as? UINavigationController)?.viewControllers.first
                       is ImpressV3ReviewViewController)
         XCTAssertTrue((tabs[1] as? UINavigationController)?.viewControllers.first
                       is ImpressNoteListTableViewController)
         XCTAssertTrue((tabs[2] as? UINavigationController)?.viewControllers.first
-                      is ImpressCalibrationViewController)
-        XCTAssertTrue((tabs[3] as? UINavigationController)?.viewControllers.first
                       is ImpressV3SettingsHubViewController)
         let review = try XCTUnwrap((tabs[0] as? UINavigationController)?
             .viewControllers.first as? ImpressV3ReviewViewController)
@@ -42,40 +40,42 @@ final class ImpressCalibrationIntegrationTests: XCTestCase {
         let notes = try XCTUnwrap(notesNav.viewControllers.first as? ImpressNoteListTableViewController)
         review.loadViewIfNeeded()
         notes.loadViewIfNeeded()
-        XCTAssertEqual(tabs.viewControllers?.count, 4)
+        XCTAssertEqual(tabs.viewControllers?.count, 3)
         XCTAssertEqual(cardNav.viewControllers.count, 1)
         XCTAssertEqual(notesNav.viewControllers.count, 1)
     }
 
     @MainActor
-    func testCalibrationNotificationRoutesToPrimaryCalibration() throws {
+    func testCalibrationNotificationRoutesToSettingsCalibration() throws {
         let tab = ImTabBarViewController()
         tab.loadViewIfNeeded()
         let inbox = ImpressCalibrationNotificationRouteInbox.shared
         inbox.enqueue()
         XCTAssertTrue(inbox.deliverIfPossible(in: tab))
         XCTAssertEqual(tab.selectedIndex, 2)
-        let calibration = try XCTUnwrap(tab.viewControllers?[2] as? UINavigationController)
-        XCTAssertTrue(calibration.viewControllers.first is ImpressCalibrationViewController)
-        XCTAssertTrue(calibration.topViewController is ImpressCalibrationViewController)
-        XCTAssertEqual(calibration.viewControllers.count, 1)
+        let settings = try XCTUnwrap(tab.viewControllers?[2] as? UINavigationController)
+        XCTAssertTrue(settings.viewControllers.first is ImpressV3SettingsHubViewController)
+        XCTAssertTrue(settings.topViewController is ImpressCalibrationViewController)
+        XCTAssertEqual(settings.viewControllers.count, 2)
         XCTAssertFalse(inbox.pending)
         XCTAssertFalse(inbox.deliverIfPossible(in: tab))
     }
 
     @MainActor
-    func testReviewExcludesLargeCalibrationChartAndSettingsRetainsDetailRoute() throws {
+    func testReviewUsesCollapsedCalibrationDrawerAndSettingsRetainsDetailRoute() throws {
         let tabs = ImTabBarViewController()
         tabs.loadViewIfNeeded()
         let flashcardNav = try XCTUnwrap(tabs.viewControllers?[0] as? UINavigationController)
         let review = try XCTUnwrap(flashcardNav.viewControllers.first
                                    as? ImpressV3ReviewViewController)
         review.loadViewIfNeeded()
-        XCTAssertNil(review.view.subviews.first {
-            $0.accessibilityIdentifier == "impress.review.calibration-week"
-        })
+        let drawer = try XCTUnwrap(review.view.subviews.first {
+            $0.accessibilityIdentifier == "impress.review.calibration-drawer"
+        } as? ImpressV3CalibrationDrawerView)
+        XCTAssertFalse(drawer.isExpanded)
+        XCTAssertEqual(drawer.selectedPeriod, .week)
         XCTAssertEqual(flashcardNav.viewControllers.count, 1)
-        let settingsNav = try XCTUnwrap(tabs.viewControllers?[3] as? UINavigationController)
+        let settingsNav = try XCTUnwrap(tabs.viewControllers?[2] as? UINavigationController)
         let settings = try XCTUnwrap(settingsNav.viewControllers.first
                                     as? ImpressV3SettingsHubViewController)
         settings.loadViewIfNeeded()
@@ -89,7 +89,7 @@ final class ImpressCalibrationIntegrationTests: XCTestCase {
     func testSettingsDailyCalibrationUsesSameFullDetailClass() throws {
         let tabs = ImTabBarViewController()
         tabs.loadViewIfNeeded()
-        let settingsNav = try XCTUnwrap(tabs.viewControllers?[3] as? UINavigationController)
+        let settingsNav = try XCTUnwrap(tabs.viewControllers?[2] as? UINavigationController)
         let hub = try XCTUnwrap(settingsNav.viewControllers.first
                                 as? ImpressV3SettingsHubViewController)
         hub.loadViewIfNeeded()
@@ -104,13 +104,63 @@ final class ImpressCalibrationIntegrationTests: XCTestCase {
     func testCalibrationEntryIsAvailableUnderLearningRhythm() throws {
         let tabs = ImTabBarViewController()
         tabs.loadViewIfNeeded()
-        let settings = try XCTUnwrap(tabs.viewControllers?[3] as? UINavigationController)
+        let settings = try XCTUnwrap(tabs.viewControllers?[2] as? UINavigationController)
         let hub = try XCTUnwrap(settings.viewControllers.first as? ImpressV3SettingsHubViewController)
         hub.loadViewIfNeeded()
         let cell = hub.tableView(hub.tableView,
                                  cellForRowAt: IndexPath(row: 0, section: 1))
         let title = (cell.contentConfiguration as? UIListContentConfiguration)?.text
         XCTAssertEqual(title, "每日校准")
+    }
+
+    @MainActor
+    func testCalibrationDrawerPeriodAndExpansionDoNotIntroduceReviewActions() throws {
+        let drawer = ImpressV3CalibrationDrawerView(
+            frame: CGRect(x: 0, y: 0, width: 350, height: 148))
+        var expansion: [Bool] = []
+        drawer.onExpansionRequest = { expansion.append($0) }
+        let handle = try XCTUnwrap(drawer.subviews.compactMap {
+            $0 as? UIButton
+        }.first(where: {
+            $0.accessibilityIdentifier == "impress.review.calibration-drawer-handle"
+        }))
+        handle.sendActions(for: .touchUpInside)
+        XCTAssertEqual(expansion, [true])
+        drawer.setExpanded(true)
+        XCTAssertTrue(drawer.isExpanded)
+        XCTAssertEqual(drawer.selectedPeriod, .week)
+        let period = try XCTUnwrap(drawer.subviews.compactMap {
+            $0 as? UISegmentedControl
+        }.first(where: {
+            $0.accessibilityIdentifier == "impress.review.calibration-drawer-period"
+        }))
+        XCTAssertEqual(period.numberOfSegments, 3)
+        period.selectedSegmentIndex = 2
+        XCTAssertEqual(drawer.selectedPeriod, .year)
+        handle.sendActions(for: .touchUpInside)
+        XCTAssertEqual(expansion, [true, false])
+        // Only the drawer's own controls are touched; no FSRS session or
+        // SwipeCardStack review-submission callback is installed here.
+    }
+
+    @MainActor
+    func testCompactPlotProjectionMatchesCanonical7_30_12Gaps() throws {
+        let records: [CalibrationDailyRecord] = []
+        let weekly = try ImpressCalibrationChartProjector.project(
+            records: records, period: .week)
+        let monthly = try ImpressCalibrationChartProjector.project(
+            records: records, period: .month)
+        let yearly = try ImpressCalibrationChartProjector.project(
+            records: records, period: .year)
+        XCTAssertEqual(weekly.values.count, 7)
+        XCTAssertEqual(monthly.values.count, 30)
+        XCTAssertEqual(yearly.values.count, 12)
+        XCTAssertTrue(weekly.values.allSatisfy { $0 == nil })
+        XCTAssertTrue(monthly.values.allSatisfy { $0 == nil })
+        XCTAssertTrue(yearly.values.allSatisfy { $0 == nil })
+        XCTAssertEqual(weekly.values, weekly.smooth)
+        XCTAssertEqual(monthly.values, monthly.smooth)
+        XCTAssertEqual(yearly.values, yearly.smooth)
     }
 
     func testStorePersistsDayGoalsAndNeverRewritesHistory() async throws {
