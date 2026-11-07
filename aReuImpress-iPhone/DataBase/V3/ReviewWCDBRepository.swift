@@ -845,12 +845,23 @@ public actor ReviewWCDBRepository: ReviewRepository {
     /// All source reads finish before one destination transaction begins.
     /// A failure never half-imports a card collection or a notes collection.
     private static func importLegacyIfPresent(on db: Database, path: String,
-                                              selectedSource: URL? = nil) throws -> Bool {
+                                              selectedSource: URL? = nil,
+                                              allowDisposableFixture: Bool = false) throws -> Bool {
         let documents = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask)[0]
         let expected = documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite")
-        guard URL(fileURLWithPath: path).standardizedFileURL ==
-                expected.standardizedFileURL else { return false } // DEBUG fixtures
+        let targetURL = URL(fileURLWithPath: path).standardizedFileURL
+        let isProductionTarget = targetURL == expected.standardizedFileURL
+        #if DEBUG
+        let tempRoot = FileManager.default.temporaryDirectory.standardizedFileURL.path + "/"
+        let isIsolatedFixture = allowDisposableFixture &&
+            targetURL.path.hasPrefix(tempRoot) &&
+            selectedSource?.standardizedFileURL.path.hasPrefix(tempRoot) == true &&
+            targetURL.standardizedFileURL != selectedSource?.standardizedFileURL
+        guard isProductionTarget || isIsolatedFixture else { return false }
+        #else
+        guard isProductionTarget else { return false }
+        #endif
         let legacy = selectedSource ?? documents.appendingPathComponent(
             "ImpressDB/impressdata.db")
         guard FileManager.default.fileExists(atPath: legacy.path) else { return false }
@@ -1010,6 +1021,73 @@ public actor ReviewWCDBRepository: ReviewRepository {
             path: documents.appendingPathComponent("ImpressV3/ReviewV3.sqlite").path,
             selectedSource: source)
     }
+
+    #if DEBUG
+    /// Disposable regression harness: both source and V3 target must live
+    /// inside tmp. It never opens Documents or the installed user's database.
+    public func testImportLegacyFixture(at source: URL) throws -> Bool {
+        try Self.importLegacyIfPresent(on: database, path: database.path,
+            selectedSource: source, allowDisposableFixture: true)
+    }
+
+    /// Source schema fixture based on the old WCDB ImCardModel/ImNoteModel
+    /// mapping. Uses only synthetic content, never real app data.
+    static func seedLegacyImpressFixtureForTesting(at file: URL) throws {
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var pointer: OpaquePointer?
+        let result = file.path.withCString {
+            sqlite3_open_v2($0, &pointer,
+                SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil)
+        }
+        guard result == SQLITE_OK, let db = pointer else {
+            if let pointer { sqlite3_close(pointer) }
+            throw ReviewWCDBError.corruptRecord
+        }
+        defer { sqlite3_close(db) }
+        func execute(_ sql: String) throws {
+            guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+                throw ReviewWCDBError.corruptRecord
+            }
+        }
+        try execute("""
+            CREATE TABLE impress_card (
+                id INTEGER PRIMARY KEY, note_id INTEGER, question TEXT,
+                answer TEXT, card_type INTEGER, choices TEXT,
+                correct_answer_indices TEXT, image_data BLOB,
+                create_time REAL, state INTEGER, due_date REAL,
+                last_review_date REAL, stability REAL, difficulty REAL,
+                review_count INTEGER, lapse_count INTEGER, relearning_step INTEGER,
+                chat_link TEXT, chat_session_id INTEGER
+            );
+            """)
+        try execute("""
+            CREATE TABLE impress_notes (
+                id INTEGER PRIMARY KEY, mainTitle TEXT, markdownText TEXT,
+                createTime REAL, modify_date REAL, directory_path TEXT
+            );
+            """)
+        try execute("""
+            INSERT INTO impress_card
+                (id, note_id, question, answer, card_type, create_time,
+                 state, due_date, last_review_date, stability, difficulty,
+                 review_count, lapse_count)
+            VALUES (101, 701, 'Verify the claim?', 'Check the evidence.', 0,
+                    1720000000, 2, 1721000000, 1720000000, 3.0, 5.0, 9, 2);
+            """)
+        try execute("""
+            INSERT INTO impress_card
+                (id, question, answer, card_type, create_time, state)
+            VALUES (102, NULL, 'Prior format answer', 1, 1720000000, 4);
+            """)
+        try execute("""
+            INSERT INTO impress_notes
+                (id, mainTitle, markdownText, createTime, directory_path)
+            VALUES (701, 'Old local note', '# Evidence\\nRead primary sources.',
+                    1720000000, 'Local/Archive');
+            """)
+    }
+    #endif
 
     /// Read-only, local presentation of original WCDB notes. Obsidian is never
     /// modified or treated as the owner of notes imported from another store.
