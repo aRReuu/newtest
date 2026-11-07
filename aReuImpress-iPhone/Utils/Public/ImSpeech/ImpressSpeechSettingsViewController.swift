@@ -104,7 +104,19 @@ final class ImpressSpeechSettingsViewController: UITableViewController {
             }
         } else if indexPath.row == 0 {
             content.text = V3L("麦克风权限")
-            switch AVAudioApplication.shared.recordPermission {
+            // AVAudioApplication is iOS 17+; AVAudioSession is authoritative
+            // for the iOS 16.7 legacy speech permission route.
+            let permission: AVAudioSession.RecordPermission
+            if #available(iOS 17.0, *) {
+                switch AVAudioApplication.shared.recordPermission {
+                case .granted: permission = .granted
+                case .denied: permission = .denied
+                default: permission = .undetermined
+                }
+            } else {
+                permission = AVAudioSession.sharedInstance().recordPermission
+            }
+            switch permission {
             case .granted: content.secondaryText = V3L("已授权")
             case .denied: content.secondaryText = V3L("未授权 · 点击打开系统设置")
             default: content.secondaryText = V3L("首次开始录音时请求授权")
