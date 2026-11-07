@@ -99,6 +99,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>仅在你主动拍照、扫描文字或录制卡片视频时访问相机；OCR 和视频压缩在设备端执行，不会自动上传。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>仅在你主动语音输入时进行 Apple 端侧语音识别；若设备或语言不支持离线识别，将拒绝本次识别，不会改用在线识别。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Impress 仅在你点击麦克风后录音，使用 Apple 端侧识别将语音插入当前文本框。音频不上传或保存。</string>
 	<key>NSDocumentsFolderUsageDescription</key>

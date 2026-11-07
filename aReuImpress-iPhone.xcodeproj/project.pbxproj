@@ -1441,7 +1441,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ImpressCalibrationWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks",);
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.areu2.iphone.ImpressCalibrationWidgets;
@@ -1463,7 +1463,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ImpressCalibrationWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks",);
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.areu2.iphone.ImpressCalibrationWidgets;
@@ -1480,7 +1480,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.areu.iphone.ImpressV11UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -1495,7 +1495,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.areu.iphone.ImpressV11UITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -1555,7 +1555,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -1613,7 +1613,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -1649,7 +1649,7 @@
 				);
 				IBSC_FLATTEN_NIBS = YES;
 				INFOPLIST_FILE = "aReuImpress-iPhone/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1689,7 +1689,7 @@
 				);
 				IBSC_FLATTEN_NIBS = YES;
 				INFOPLIST_FILE = "aReuImpress-iPhone/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1723,7 +1723,7 @@
 					"$(BUILT_PRODUCTS_DIR)/WCDBOptimizedSQLCipher/sqlcipher.framework/Headers",
 				);
 				INFOPLIST_FILE = "aReuImpress-iPhoneTests/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				// Xcode 27 explicit Swift module scanning: @testable import of the App
 				// requires the test bundle to supply all transitive Pod framework paths.
 				// Reuse pre-built locked Pods; do not install/update dependencies.
@@ -1766,7 +1766,7 @@
 					"$(BUILT_PRODUCTS_DIR)/WCDBOptimizedSQLCipher/sqlcipher.framework/Headers",
 				);
 				INFOPLIST_FILE = "aReuImpress-iPhoneTests/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
 				// Xcode 27 explicit Swift module scanning: @testable import of the App
 				// requires the test bundle to supply all transitive Pod framework paths.
 				// Reuse pre-built locked Pods; do not install/update dependencies.

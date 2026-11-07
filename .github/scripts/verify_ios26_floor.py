@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Fail early if the public iOS 26 deployment floor drifts.
+"""Historical CI entry path: verify the actual iOS 16.7 deployment contract.
 
-The actual compiled .app MinimumOSVersion is verified by the native workflow.
+Source checks only: native CI must also inspect .app/.appex MinimumOSVersion.
 """
 from pathlib import Path
 import plistlib
@@ -10,16 +10,14 @@ import re
 root = Path(__file__).resolve().parents[2]
 project = (root / "aReuImpress-iPhone.xcodeproj/project.pbxproj").read_text()
 podfile = (root / "Podfile").read_text()
-workflow = (root / ".github/workflows/r04-2-privacy-retirement-validation.yml").read_text()
-
 settings = re.findall(r"\bIPHONEOS_DEPLOYMENT_TARGET\s*=\s*(\d+(?:\.\d+)?);", project)
-assert len(settings) == 6 and set(settings) == {"26.0"}, ("deployment target drift", settings)
-assert "platform :ios, '26.0'" in podfile
-assert "config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '26.0'" in podfile
-assert workflow.count("IPHONEOS_DEPLOYMENT_TARGET=26.0") == 3
-assert "out/minimum-ios-version.txt" in workflow and "PlistBuddy" in workflow
-
+assert len(settings) == 10 and set(settings) == {"16.7"}, ("deployment drift", settings)
+assert "platform :ios, '16.7'" in podfile
+assert "config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.7'" in podfile
+assert "26.0" not in podfile, "Do not override the deployment floor in Pods"
 with (root / "aReuImpress-iPhone/Info.plist").open("rb") as f:
-    capabilities = plistlib.load(f).get("UIRequiredDeviceCapabilities", [])
-assert "arm64" in capabilities and "armv7" not in capabilities, capabilities
-print("PASS: iOS 26.0 deployment in project, CocoaPods, CI, and ARM64 capability")
+    info = plistlib.load(f)
+assert "arm64" in info.get("UIRequiredDeviceCapabilities", [])
+assert info.get("NSMicrophoneUsageDescription")
+assert info.get("NSSpeechRecognitionUsageDescription")
+print("PASS: iOS 16.7 deployment in Xcode and CocoaPods plus speech privacy keys")
