@@ -3651,6 +3651,56 @@ final class ReviewWCDBRepositoryTests: XCTestCase {
         XCTAssertEqual(unchanged?.question, "Search 0")
     }
 
+    func testLegacySQLiteMigrationPreservesOldSourceAndExistingV3Cards() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "ImpressLegacyMigrationTest-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("Old/impressdata.db")
+        let destination = root.appendingPathComponent("V3/ReviewV3.sqlite")
+        try ReviewWCDBRepository.seedLegacyImpressFixtureForTesting(at: source)
+        let originalSource = try Data(contentsOf: source)
+
+        let calculator = FSRS6ReviewCalculator()
+        let repo = try ReviewWCDBRepository(databasePath: destination.path,
+            calculator: calculator)
+        let existingID = UUID()
+        let now = Date(timeIntervalSince1970: 1_730_000_000)
+        try await repo.insertNewCard(WCDBV3CardInput(
+            cardID: existingID, question: "Already in V3", answerText: "Keep it"),
+            initial: try calculator.newCardSnapshot(id: existingID, now: now),
+            now: now)
+
+        let firstPass = try await repo.testImportLegacyFixture(at: source)
+        XCTAssertTrue(firstPass)
+        let repeated = try await repo.testImportLegacyFixture(at: source)
+        XCTAssertFalse(repeated, "The migration receipt must prevent duplicate insertion")
+        let cards = try await repo.listManagedCards()
+        XCTAssertEqual(cards.count, 3)
+        XCTAssertTrue(cards.contains(where: { $0.cardID == existingID }))
+        let old = try XCTUnwrap(cards.first(where: { $0.question == "Verify the claim?" }))
+        let oldContent = try await repo.content(for: old.cardID)
+        XCTAssertEqual(oldContent?.answerText, "Check the evidence.")
+        XCTAssertTrue(try await repo.reviewHistory(for: old.cardID).isEmpty,
+            "Aggregate legacy review counts cannot be fabricated as ReviewEvents")
+        let retiredType = try XCTUnwrap(cards.first(where: {
+            $0.question.contains("旧版无文字卡片")
+        }))
+        XCTAssertTrue(retiredType.isSuspended)
+        let fallback = try await repo.content(for: retiredType.cardID)
+        XCTAssertEqual(fallback?.cardType, 0)
+        XCTAssertEqual(fallback?.answerText, "Prior format answer")
+
+        let notes = try await repo.recoveredLegacyNotes()
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertEqual(notes.first?.legacyID, 701)
+        XCTAssertEqual(notes.first?.title, "Old local note")
+        XCTAssertTrue(notes.first?.markdown.contains("Evidence") == true)
+        XCTAssertEqual(notes.first?.folder, "Local/Archive")
+        XCTAssertEqual(try Data(contentsOf: source), originalSource,
+            "The original old WCDB file must remain byte-for-byte untouched")
+    }
+
     func testExistingV3DatabaseUpgradesContentRevisionWithoutLosingCards() async throws {
         let path = temporaryPath()
         let oldID = UUID()
