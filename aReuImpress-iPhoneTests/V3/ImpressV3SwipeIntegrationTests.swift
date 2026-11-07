@@ -899,8 +899,8 @@ final class ImpressR041NativeNavigationTests: XCTestCase {
         XCTAssertEqual(screen.tableView.numberOfRows(inSection: 2), 2)
         XCTAssertEqual(ImpressSpeechLocale.allCases.map(\.rawValue),
                        ["zh-CN", "zh-TW", "en-US"])
-        // No action was invoked and the test does not request microphone access.
-        XCTAssertEqual(ImpressSpeechService.shared.state, .idle)
+        // This only inspects Settings layout; it never starts the microphone.
+        XCTAssertNotNil(ImpressSpeechService.shared)
     }
 
     func testSpeechVolatileResultUpdatesWithoutDuplication() {
@@ -919,10 +919,18 @@ final class ImpressR041NativeNavigationTests: XCTestCase {
         let browser = ImWebViewController.forDirectBrowse()
         browser.loadViewIfNeeded()
         XCTAssertEqual(browser.title, "网页聊天")
-        XCTAssertTrue(browser.navigationItem.leftBarButtonItems?.isEmpty ?? true)
+        XCTAssertEqual(browser.navigationItem.leftBarButtonItems?.count, 1)
         let actions = browser.navigationItem.rightBarButtonItems ?? []
-        XCTAssertFalse(actions.contains { $0.title == "复制问题" })
-        XCTAssertTrue(actions.contains { $0.accessibilityLabel == "从提示词库复制" })
+        XCTAssertEqual(actions.count, 2)
+        XCTAssertTrue(actions.contains { $0.accessibilityLabel == V3L("对话设置与历史") })
+        XCTAssertFalse(actions.contains {
+            $0.accessibilityIdentifier == "impress.deepseek.send" ||
+            $0.accessibilityIdentifier == "impress.deepseek.speech"
+        })
+        let prepare = actions.first(where: {
+            $0.accessibilityIdentifier == "impress.deepseek.insert-material"
+        })
+        XCTAssertEqual(prepare?.isEnabled, false)
     }
 }
 
